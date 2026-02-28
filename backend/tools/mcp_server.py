@@ -8,9 +8,9 @@ ADK connects to this automatically via StdioConnectionParams in agent.py.
 
 from dotenv import load_dotenv
 
-load_dotenv()  # Load .env so API keys are available in the subprocess
+load_dotenv()  
 
-from tools.registry import mcp  # noqa: E402 — must be after load_dotenv
+from tools.registry import mcp 
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

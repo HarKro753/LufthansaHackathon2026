@@ -12,8 +12,4 @@ from tools.search_places import search_places
 
 mcp = FastMCP("travel-tools")
 
-# ─── Register tools ──────────────────────────────────────────────────────────
-# Each call wraps the function as an MCP tool with auto-generated schema.
-# Add new tools here as you create them.
-
 mcp.tool()(search_places)
