@@ -673,6 +673,16 @@ export default function Page() {
   const [showUpload, setShowUpload] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  useEffect(() => {
+    // Check local storage to restore onboarding state
+    if (typeof window !== "undefined") {
+      const savedTraveler = window.localStorage.getItem("traveler_context");
+      if (savedTraveler) {
+        setOnboardingComplete(true);
+      }
+    }
+  }, []);
+
   // ─── Chat state ───────────────────────────────────────────────────────────
   const { trip, refetch: refetchTrip } = useTrip();
   const {
