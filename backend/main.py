@@ -104,6 +104,35 @@ def _sse_event(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
+def _unwrap_adk_result(response: object) -> object:
+    """Unwrap ADK's {"result": "<json-string>"} wrapper.
+
+    ADK wraps string tool returns as ``{"result": "<json>"}`` — a dict with
+    a single ``result`` key whose value is a JSON-encoded string.  This helper
+    detects that pattern and returns the inner parsed dict so callers always
+    see the actual tool return value.
+    """
+    if not isinstance(response, dict):
+        return response
+
+    # If the dict already has keys beyond "result", it's not a wrapper
+    if set(response.keys()) != {"result"}:
+        return response
+
+    inner = response.get("result")
+    if not isinstance(inner, str):
+        return response
+
+    try:
+        parsed = json.loads(inner)
+        if isinstance(parsed, (dict, list)):
+            return parsed
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    return response
+
+
 async def _stream_agent_response(
     user_id: str,
     session_id: str,
@@ -158,59 +187,49 @@ async def _stream_agent_response(
                     resp = part.function_response
                     resp_name = resp.name or ""
                     tool_id = resp.id or tool_call_ids.get(resp_name) or resp_name
-                    result_data = resp.response
+
+                    # Unwrap ADK's {"result": "<json-string>"} wrapper so the
+                    # frontend always receives the actual tool return dict.
+                    unwrapped = _unwrap_adk_result(resp.response)
                     result_str = (
-                        json.dumps(result_data)
-                        if isinstance(result_data, (dict, list))
-                        else str(result_data)
+                        json.dumps(unwrapped)
+                        if isinstance(unwrapped, (dict, list))
+                        else str(unwrapped)
                     )
 
-                    # Track trip item IDs from mutating tool results
+                    # Build the SSE event with result + optional item fields
+                    sse_payload: dict = {
+                        "type": "tool_call_complete",
+                        "toolCallId": tool_id,
+                        "result": result_str,
+                    }
+
+                    # For trip-mutating tools, extract itemId/itemType and
+                    # send them as top-level SSE fields so the frontend can
+                    # inject timeline cards without parsing result JSON.
                     resolved_name = tool_id_to_name.get(tool_id, resp_name)
                     if resolved_name in TRIP_MUTATING_TOOLS:
-                        try:
-                            # ADK wraps string tool returns as {"result": "<json>"}
-                            # so we need to unwrap before looking for itemId
-                            parsed = (
-                                result_data
-                                if isinstance(result_data, dict)
-                                else json.loads(result_str)
-                            )
-                            # Direct itemId at top level
-                            item_id = None
-                            if isinstance(parsed, dict):
-                                item_id = parsed.get("itemId")
-                                # Or nested inside a "result" string wrapper
-                                if not item_id and isinstance(
-                                    parsed.get("result"), str
-                                ):
-                                    try:
-                                        inner = json.loads(parsed["result"])
-                                        if isinstance(inner, dict):
-                                            item_id = inner.get("itemId")
-                                    except (json.JSONDecodeError, TypeError):
-                                        pass
-                            if item_id:
-                                timeline_item_ids.append(item_id)
-                        except (json.JSONDecodeError, TypeError):
-                            pass
+                        item_id = (
+                            unwrapped.get("itemId")
+                            if isinstance(unwrapped, dict)
+                            else None
+                        )
+                        item_type = (
+                            unwrapped.get("itemType")
+                            if isinstance(unwrapped, dict)
+                            else None
+                        )
+                        if item_id:
+                            timeline_item_ids.append(item_id)
+                            sse_payload["itemId"] = item_id
+                        if item_type:
+                            sse_payload["itemType"] = item_type
 
-                    yield _sse_event(
-                        {
-                            "type": "tool_call_complete",
-                            "toolCallId": tool_id,
-                            "result": result_str,
-                        }
-                    )
+                    yield _sse_event(sse_payload)
 
-                # -- Thought / thinking --
+                # -- Thought / thinking — skip, not streamed to client --
                 elif part.thought and part.text:
-                    yield _sse_event(
-                        {
-                            "type": "thinking",
-                            "content": part.text,
-                        }
-                    )
+                    pass
 
                 # -- Text content --
                 elif part.text:

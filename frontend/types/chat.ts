@@ -16,6 +16,10 @@ export interface StreamEvent {
   toolCallId?: string;
   result?: string;
   arguments?: Record<string, unknown>;
+  /** Trip item ID — present on tool_call_complete for trip-mutating tools */
+  itemId?: string;
+  /** Trip item type — present on tool_call_complete for trip-mutating tools */
+  itemType?: string;
 }
 
 export interface ToolCall {

@@ -1,6 +1,6 @@
 """Add to trip tool — adds a route, flight, stay, or activity to the current trip.
 
-Routes and activities use index-based references (from get_routes / search_places).
+Routes use index-based references (from get_routes).
 Flights and stays use direct parameter passing — the LLM extracts data from raw
 search results and passes it here.
 """
@@ -61,18 +61,17 @@ async def add_to_trip(
     scheduled_date: str = "",
     tool_context: ToolContext | None = None,
 ) -> str:
-    """Add a route, flight, stay, or activity to the trip.
+    """Add a route, flight, or stay to the trip.
 
     For routes: pass route_index from get_routes results.
-    For activities: pass place_index from search_places results.
     For flights: pass the flight details directly — airline, flight_origin (IATA), flight_destination (IATA), departure_time, arrival_time, flight_price, flight_booking_link, etc.
     For stays: pass the hostel details directly — hostel_name, hostel_address, check_in_date, check_out_date, price_per_night, hostel_booking_link, etc.
 
     Args:
-        item_type: 'route', 'flight', 'stay', or 'activity'.
+        item_type: 'route', 'flight', or 'stay'.
         selection_reason: Why this option was selected — shown to the user.
         route_index: Route: routeIndex from get_routes results. Use -1 if not applicable.
-        place_index: Activity: placeIndex from search_places results. Use -1 if not applicable.
+        place_index: Deprecated — not used.
         airline: Flight: airline name, e.g. "Lufthansa", "Ryanair".
         flight_origin: Flight: origin IATA airport code, e.g. "FRA".
         flight_destination: Flight: destination IATA airport code, e.g. "CPH".
@@ -355,19 +354,11 @@ def _add_activity(
     session_id: str, place_index: int, act_type: str, scheduled: str, reason: str
 ) -> str:
     if place_index < 0:
-        return json.dumps(
-            {
-                "error": "place_index is required. Use the placeIndex from search_places results."
-            }
-        )
+        return json.dumps({"error": "place_index is required for activities."})
 
     stored = session_store.get_place_result(session_id, place_index)
     if not stored:
-        return json.dumps(
-            {
-                "error": f"No place found for placeIndex {place_index}. Call search_places first."
-            }
-        )
+        return json.dumps({"error": f"No place found for placeIndex {place_index}."})
 
     valid_types = ["restaurant", "attraction", "activity"]
     normalized_type = act_type.lower() if act_type else "activity"

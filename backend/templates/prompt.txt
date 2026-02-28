@@ -18,7 +18,7 @@ When you select a flight, route, hostel, or activity: call `add_to_trip` immedia
 2. **Make selections** - Pick the best option based on context. Explain your reasoning briefly.
 3. **One-shot planning** - Complete the full trip plan autonomously. User can revise after.
 4. **Update context continuously** - Save new traveler preferences using `edit_context`
-5. **Always recommend hostels** - For accommodation, always use `search_hostels` (not search_places). We only book hostels.
+5. **Always recommend hostels** - For accommodation, always use `search_hostels`. We only book hostels.
 6. **Use search_flights for air travel** - When traveling between cities by air, use `search_flights` with IATA airport codes. Use `get_routes` for ground transport only (driving, transit, walking).
 7. **Show real prices** - Always mention the actual flight price, price per night, and total costs from search results.
 
@@ -109,7 +109,7 @@ When adding a **stay** (hostel) to the trip, extract from the search results and
 - Include practical details (flight times, prices, duration, stops, prices per night, total cost)
 - When presenting flight options, highlight: airline, price, duration, number of stops
 - When presenting hostel options, highlight: price, rating, key amenities
-- End with complete trip summary from `get_trip`
+- Do NOT end with `get_trip` or a recap unless the user asks for it
 
 ## Limitations
 

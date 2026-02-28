@@ -38,17 +38,6 @@ function genId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-/** Collect all item IDs from a TripState */
-function collectTripItemIds(trip: TripState | null): Set<string> {
-  const ids = new Set<string>();
-  if (!trip) return ids;
-  for (const f of trip.flights) ids.add(f.id);
-  for (const s of trip.stays) ids.add(s.id);
-  for (const r of trip.routes) ids.add(r.id);
-  for (const a of trip.activities) ids.add(a.id);
-  return ids;
-}
-
 /** Fetch current trip state from the backend */
 async function fetchTripState(): Promise<TripState | null> {
   try {
@@ -61,36 +50,29 @@ async function fetchTripState(): Promise<TripState | null> {
   }
 }
 
-/** Find new items by comparing before/after trip state, return TimelineItem[] */
-function diffTripItems(
-  beforeIds: Set<string>,
-  afterTrip: TripState | null,
-): TimelineItem[] {
-  if (!afterTrip) return [];
-  const items: TimelineItem[] = [];
-
-  for (const f of afterTrip.flights) {
-    if (!beforeIds.has(f.id)) {
-      items.push({ itemType: "flight", data: f });
-    }
+/** Find a specific trip item by ID and return it as a TimelineItem */
+function findTripItem(
+  trip: TripState,
+  itemId: string,
+  itemType: string | null,
+): TimelineItem | null {
+  if (itemType === "flight" || !itemType) {
+    const f = trip.flights.find((x) => x.id === itemId);
+    if (f) return { itemType: "flight", data: f };
   }
-  for (const s of afterTrip.stays) {
-    if (!beforeIds.has(s.id)) {
-      items.push({ itemType: "stay", data: s });
-    }
+  if (itemType === "stay" || !itemType) {
+    const s = trip.stays.find((x) => x.id === itemId);
+    if (s) return { itemType: "stay", data: s };
   }
-  for (const r of afterTrip.routes) {
-    if (!beforeIds.has(r.id)) {
-      items.push({ itemType: "route", data: r });
-    }
+  if (itemType === "route" || !itemType) {
+    const r = trip.routes.find((x) => x.id === itemId);
+    if (r) return { itemType: "route", data: r };
   }
-  for (const a of afterTrip.activities) {
-    if (!beforeIds.has(a.id)) {
-      items.push({ itemType: "activity", data: a });
-    }
+  if (itemType === "activity" || !itemType) {
+    const a = trip.activities.find((x) => x.id === itemId);
+    if (a) return { itemType: "activity", data: a };
   }
-
-  return items;
+  return null;
 }
 
 export function useChat(options?: UseChatOptions): UseChatReturn {
@@ -215,11 +197,6 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
       // Track which tool calls are in-flight so we can trigger refetch on complete
       const pendingToolNames = new Map<string, string>();
 
-      // Snapshot trip state before this message — used to diff new items
-      let tripSnapshotIds: Set<string> = new Set();
-      const initialTrip = await fetchTripState();
-      tripSnapshotIds = collectTripItemIds(initialTrip);
-
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
       setError(null);
@@ -314,39 +291,6 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                     return { ...msg, content: newContent };
                   }),
                 );
-              } else if (event.type === "thinking" && event.content) {
-                setMessages((prev) =>
-                  prev.map((msg) => {
-                    if (msg.id !== assistantId) return msg;
-                    const acts = msg.activities ?? [];
-                    const last = acts[acts.length - 1];
-                    if (last?.type === "thinking") {
-                      return {
-                        ...msg,
-                        activities: [
-                          ...acts.slice(0, -1),
-                          {
-                            ...last,
-                            data: {
-                              ...last.data,
-                              content: last.data.content + event.content!,
-                            },
-                          },
-                        ],
-                      };
-                    }
-                    return {
-                      ...msg,
-                      activities: [
-                        ...acts,
-                        {
-                          type: "thinking",
-                          data: { id: genId(), content: event.content! },
-                        },
-                      ],
-                    };
-                  }),
-                );
               } else if (event.type === "tool_call_start" && event.toolCall) {
                 pendingToolNames.set(event.toolCall.id, event.toolCall.name);
 
@@ -423,37 +367,46 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                   }),
                 );
 
-                // For trip-mutating tools: fetch trip state and inject
-                // timeline cards without blocking the SSE read loop
+                // For trip-mutating tools: read itemId/itemType from the
+                // event (sent as top-level fields by the backend), fetch
+                // trip state, and inject a timeline card immediately.
                 if (isTripTool) {
                   onTripMutatedRef.current?.();
 
-                  fetchTripState().then((updatedTrip) => {
-                    const newItems = diffTripItems(tripSnapshotIds, updatedTrip);
-
-                    if (newItems.length > 0) {
-                      const updatedIds = collectTripItemIds(updatedTrip);
-                      tripSnapshotIds = updatedIds;
+                  const itemId = event.itemId ?? null;
+                  const itemType = event.itemType ?? null;
+                  if (itemId) {
+                    fetchTripState().then((trip) => {
+                      if (!trip) return;
+                      const timelineItem = findTripItem(trip, itemId, itemType);
+                      if (!timelineItem) return;
 
                       setMessages((prev) =>
                         prev.map((msg) => {
                           if (msg.id !== assistantId) return msg;
-                          const timelineActivities: ActivityItem[] =
-                            newItems.map((item) => ({
-                              type: "timeline" as const,
-                              data: item,
-                            }));
+                          // Avoid duplicate timeline cards for the same item
+                          const alreadyAdded = msg.activities?.some(
+                            (a) =>
+                              a.type === "timeline" &&
+                              "data" in a.data &&
+                              a.data.data?.id === itemId,
+                          );
+                          if (alreadyAdded) return msg;
+
                           return {
                             ...msg,
                             activities: [
                               ...(msg.activities ?? []),
-                              ...timelineActivities,
+                              {
+                                type: "timeline" as const,
+                                data: timelineItem,
+                              },
                             ],
                           };
                         }),
                       );
-                    }
-                  });
+                    });
+                  }
                 }
               } else if (event.type === "tool_call_error" && event.toolCallId) {
                 setMessages((prev) =>

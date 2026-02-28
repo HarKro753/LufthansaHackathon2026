@@ -9,7 +9,6 @@ Architecture:
         ├── get_routes       — compute routes via Google Routes API
         ├── search_flights   — find flights with real prices via Bright Data
         ├── search_hostels   — find hostels with real prices via Bright Data
-        ├── search_places    — find restaurants/attractions via Google Places API
         ├── update_trip      — modify existing trip items
         ├── remove_from_trip — remove items from trip
         ├── edit_context     — save traveler preferences
