@@ -4,7 +4,7 @@ from tools.search_places import search_places
 
 root_agent = Agent(
     name="travel_agent",
-    model="gemini-2.5-flash",
+    model="gemini-2.0-flash",
     description="AI travel agent for the Lufthansa Hackathon 2026.",
     instruction="""You are a smart travel assistant helping users plan trips powered by Lufthansa and Google.
 
