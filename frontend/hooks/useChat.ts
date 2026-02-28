@@ -6,7 +6,9 @@ import type {
   ActivityItem,
   ContentBlock,
   StreamEvent,
+  TimelineItem,
 } from "@/types/chat";
+import type { TripState } from "@/types/trip";
 
 const API_BASE = "http://localhost:8000";
 
@@ -34,6 +36,61 @@ interface UseChatReturn {
 
 function genId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/** Collect all item IDs from a TripState */
+function collectTripItemIds(trip: TripState | null): Set<string> {
+  const ids = new Set<string>();
+  if (!trip) return ids;
+  for (const f of trip.flights) ids.add(f.id);
+  for (const s of trip.stays) ids.add(s.id);
+  for (const r of trip.routes) ids.add(r.id);
+  for (const a of trip.activities) ids.add(a.id);
+  return ids;
+}
+
+/** Fetch current trip state from the backend */
+async function fetchTripState(): Promise<TripState | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/trip`, { credentials: "include" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.trip ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Find new items by comparing before/after trip state, return TimelineItem[] */
+function diffTripItems(
+  beforeIds: Set<string>,
+  afterTrip: TripState | null,
+): TimelineItem[] {
+  if (!afterTrip) return [];
+  const items: TimelineItem[] = [];
+
+  for (const f of afterTrip.flights) {
+    if (!beforeIds.has(f.id)) {
+      items.push({ itemType: "flight", data: f });
+    }
+  }
+  for (const s of afterTrip.stays) {
+    if (!beforeIds.has(s.id)) {
+      items.push({ itemType: "stay", data: s });
+    }
+  }
+  for (const r of afterTrip.routes) {
+    if (!beforeIds.has(r.id)) {
+      items.push({ itemType: "route", data: r });
+    }
+  }
+  for (const a of afterTrip.activities) {
+    if (!beforeIds.has(a.id)) {
+      items.push({ itemType: "activity", data: a });
+    }
+  }
+
+  return items;
 }
 
 export function useChat(options?: UseChatOptions): UseChatReturn {
@@ -91,6 +148,11 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
 
       // Track which tool calls are in-flight so we can trigger refetch on complete
       const pendingToolNames = new Map<string, string>();
+
+      // Snapshot trip state before this message — used to diff new items
+      let tripSnapshotIds: Set<string> = new Set();
+      const initialTrip = await fetchTripState();
+      tripSnapshotIds = collectTripItemIds(initialTrip);
 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
@@ -269,6 +331,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                 event.type === "tool_call_complete" &&
                 event.toolCallId
               ) {
+                // Mark the tool call as completed
                 setMessages((prev) =>
                   prev.map((msg) => {
                     if (msg.id !== assistantId) return msg;
@@ -290,10 +353,39 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                   }),
                 );
 
-                // If this was a trip-mutating tool, trigger immediate map refetch
+                // If this was a trip-mutating tool, diff and inject timeline cards
                 const toolName = pendingToolNames.get(event.toolCallId);
                 if (toolName && TRIP_TOOLS.has(toolName)) {
                   onTripMutatedRef.current?.();
+
+                  // Fetch updated trip and inject new items as timeline activities
+                  const updatedTrip = await fetchTripState();
+                  const newItems = diffTripItems(tripSnapshotIds, updatedTrip);
+
+                  if (newItems.length > 0) {
+                    // Update the snapshot to include newly added items
+                    const updatedIds = collectTripItemIds(updatedTrip);
+                    tripSnapshotIds = updatedIds;
+
+                    setMessages((prev) =>
+                      prev.map((msg) => {
+                        if (msg.id !== assistantId) return msg;
+                        const timelineActivities: ActivityItem[] = newItems.map(
+                          (item) => ({
+                            type: "timeline" as const,
+                            data: item,
+                          }),
+                        );
+                        return {
+                          ...msg,
+                          activities: [
+                            ...(msg.activities ?? []),
+                            ...timelineActivities,
+                          ],
+                        };
+                      }),
+                    );
+                  }
                 }
               } else if (event.type === "tool_call_error" && event.toolCallId) {
                 setMessages((prev) =>

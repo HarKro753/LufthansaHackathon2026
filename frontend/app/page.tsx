@@ -11,6 +11,7 @@ import { CalendarExport } from "@/components/CalendarExport";
 import type { ChatMessage, ActivityItem, ToolCall } from "@/types/chat";
 import { motion } from "motion/react";
 import { InteractiveBackground } from "@/components/InteractiveBackground";
+import { TimelineCard } from "@/components/TimelineCard";
 
 // ─── Markdown components ──────────────────────────────────────────────────────
 
@@ -383,9 +384,29 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
 
 // ─── Activity renderer ────────────────────────────────────────────────────────
 
-function ActivityRenderer({ item }: { item: ActivityItem }) {
-  if (item.type === "thinking")
-    return <ThinkingBlock content={item.data.content} />;
+/** Activities that are visible in the chat (not hidden tool calls / thinking) */
+function isVisibleActivity(item: ActivityItem): boolean {
+  return item.type === "content" || item.type === "timeline";
+}
+
+/** Check if ANY tool call in the activities list is still executing */
+function hasExecutingToolCall(activities: ActivityItem[]): boolean {
+  return activities.some(
+    (a) => a.type === "tool_call" && a.data.status === "executing",
+  );
+}
+
+function ActivityRenderer({
+  item,
+  isLastTimeline,
+}: {
+  item: ActivityItem;
+  isLastTimeline: boolean;
+}) {
+  // Hide thinking and tool_call activities — we only show loading dots + timeline cards
+  if (item.type === "thinking") return null;
+  if (item.type === "tool_call") return null;
+
   if (item.type === "content") {
     return (
       <div className="prose prose-sm prose-slate max-w-none mb-3">
@@ -395,17 +416,33 @@ function ActivityRenderer({ item }: { item: ActivityItem }) {
       </div>
     );
   }
-  return <ToolCallCard toolCall={item.data} />;
+
+  if (item.type === "timeline") {
+    return <TimelineCard item={item.data} isLast={isLastTimeline} />;
+  }
+
+  return null;
 }
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
-  const hasActivities = (message.activities?.length ?? 0) > 0;
-  const hasContentActivities = message.activities?.some(
-    (a) => a.type === "content",
-  );
+  const activities = message.activities ?? [];
+  const visibleActivities = activities.filter(isVisibleActivity);
+  const hasVisibleActivities = visibleActivities.length > 0;
+  const hasContentActivities = activities.some((a) => a.type === "content");
+
+  // Show loading dots when tool calls are executing and nothing visible has appeared yet
+  const isWorking = hasExecutingToolCall(activities);
+  const showLoadingDots = isWorking && !hasVisibleActivities;
+
+  // Find the index of the last timeline item for the connector line
+  const timelineItems = activities.filter((a) => a.type === "timeline");
+  const lastTimelineId =
+    timelineItems.length > 0
+      ? timelineItems[timelineItems.length - 1].data
+      : null;
 
   if (isUser) {
     return (
@@ -426,21 +463,38 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           LH
         </div>
         <div className="flex-1 min-w-0 pt-1">
-          {hasActivities && (
+          {activities.length > 0 && (
             <div className="mb-2">
-              {message.activities!.map((item, i) => (
-                <ActivityRenderer key={item.data.id + "-" + i} item={item} />
-              ))}
+              {activities.map((item, i) => {
+                // For timeline items, determine if this is the last one
+                const isLastTimeline =
+                  item.type === "timeline" && item.data === lastTimelineId;
+
+                return (
+                  <ActivityRenderer
+                    key={
+                      (item.type === "timeline"
+                        ? `tl-${item.data.itemType}-${item.data.data.id}`
+                        : item.data.id) +
+                      "-" +
+                      i
+                    }
+                    item={item}
+                    isLastTimeline={isLastTimeline}
+                  />
+                );
+              })}
             </div>
           )}
-          {message.content && !hasContentActivities && (
+          {showLoadingDots && <LoadingAnimation />}
+          {message.content && !hasContentActivities && !hasVisibleActivities && (
             <div className="prose prose-sm prose-slate max-w-none text-gray-800">
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
                 {message.content}
               </ReactMarkdown>
             </div>
           )}
-          {!hasActivities && !message.content && <LoadingAnimation />}
+          {!activities.length && !message.content && <LoadingAnimation />}
         </div>
       </div>
     </div>

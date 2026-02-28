@@ -37,10 +37,19 @@ export interface ContentBlock {
   content: string;
 }
 
+export type TimelineItemType = "flight" | "stay" | "route" | "activity";
+
+export type TimelineItem =
+  | { itemType: "flight"; data: import("@/types/trip").TripFlight }
+  | { itemType: "stay"; data: import("@/types/trip").TripStay }
+  | { itemType: "route"; data: import("@/types/trip").TripRoute }
+  | { itemType: "activity"; data: import("@/types/trip").TripActivity };
+
 export type ActivityItem =
   | { type: "tool_call"; data: ToolCall }
   | { type: "thinking"; data: ThinkingStep }
-  | { type: "content"; data: ContentBlock };
+  | { type: "content"; data: ContentBlock }
+  | { type: "timeline"; data: TimelineItem };
 
 export interface ChatMessage {
   id: string;
