@@ -1,4 +1,10 @@
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+
+# Load .env into os.environ FIRST — the Google ADK/genai client
+# reads GOOGLE_API_KEY and GOOGLE_GENAI_USE_VERTEXAI directly
+# from the environment, not from pydantic settings.
+load_dotenv()
 
 
 class Settings(BaseSettings):

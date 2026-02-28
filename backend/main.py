@@ -10,8 +10,8 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
+from config import settings  # must be first — loads .env into os.environ for ADK
 from agent import root_agent
-from config import settings
 from models import ChatRequest
 
 app = FastAPI(title="LH Travel Agent API")
