@@ -12,6 +12,68 @@ import type { ChatMessage, ActivityItem, ToolCall } from "@/types/chat";
 import { motion } from "motion/react";
 import { InteractiveBackground } from "@/components/InteractiveBackground";
 import { TimelineCard } from "@/components/TimelineCard";
+import StepIndicator from "@/components/onboarding/StepIndicator";
+import LoadingScreen from "@/components/onboarding/LoadingScreen";
+import TravelDNAStep from "@/components/onboarding/TravelDNAStep";
+import MovementStep from "@/components/onboarding/MovementStep";
+import WorldStep from "@/components/onboarding/WorldStep";
+import StyleStep from "@/components/onboarding/StyleStep";
+import SuggestionsStep from "@/components/onboarding/SuggestionsStep";
+
+// ─── Markdown components ──────────────────────────────────────────────────────
+
+// ─── Onboarding types ─────────────────────────────────────────────────────────
+
+const STEP_LABELS = ["Sign In", "DNA", "Movement", "World", "Style", "Trips"];
+
+interface ApiResponse {
+  email?: string;
+  profile: {
+    home_city: string;
+    primary_transport: string;
+    transport_breakdown: { mode: string; trips: number; total_km: number; total_hours: number }[];
+    total_flights: number;
+    top_destinations: { city: string; visits: number }[];
+    geographic_diversity: number;
+    preferences: string[];
+    travel_season: string;
+    date_range: { start: string; end: string };
+    traveler_type: string;
+    traveler_tagline: string;
+    total_km: number;
+    commute_avg_km: number;
+    commute_avg_min: number;
+    daily_rhythm: string;
+    routine_score: number;
+    weekend_explorer: boolean;
+    flights_per_month: number;
+    month_distribution: Record<string, number>;
+    weekday_distribution: Record<string, number>;
+    hour_distribution: Record<string, number>;
+  };
+  flights: {
+    date: string;
+    origin: string;
+    destination: string;
+    duration_hrs: number;
+    distance_km: number;
+  }[];
+  suggestions: {
+    city: string;
+    region: string;
+    tags: string[];
+    transport: string;
+    score: number;
+    already_visited: boolean;
+    reasons: string[];
+    best_months: string[];
+  }[];
+  meta: {
+    processing_time_sec: number;
+    total_segments: number;
+    kept_segments: number;
+  };
+}
 
 // ─── Markdown components ──────────────────────────────────────────────────────
 
@@ -597,6 +659,18 @@ function MessageBubble({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Page() {
+  // ─── Onboarding state ─────────────────────────────────────────────────────
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [obStep, setObStep] = useState(0);
+  const [obEmail, setObEmail] = useState("");
+  const [obResult, setObResult] = useState<ApiResponse | null>(null);
+  const [obError, setObError] = useState("");
+  const [obLoadingStep, setObLoadingStep] = useState(0);
+  const [obIsLoading, setObIsLoading] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // ─── Chat state ───────────────────────────────────────────────────────────
   const { trip, refetch: refetchTrip } = useTrip();
   const { messages, isLoading, error, sendMessage, clearMessages, clearError } =
     useChat({
@@ -609,6 +683,110 @@ export default function Page() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // ─── Onboarding handlers ──────────────────────────────────────────────────
+  const handleObLogin = async () => {
+    if (!obEmail.trim()) return;
+    setObIsLoading(true);
+    setObLoadingStep(0);
+    setObError("");
+
+    const stepTimer = setInterval(() => {
+      setObLoadingStep((prev) => Math.min(prev + 1, 4));
+    }, 500);
+
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: obEmail.trim() }),
+      });
+
+      clearInterval(stepTimer);
+
+      if (!res.ok) {
+        let msg = "Login failed";
+        try {
+          const errData = await res.json();
+          msg = errData.detail || msg;
+        } catch {
+          msg = `Server error (${res.status}). Is the backend running?`;
+        }
+        throw new Error(msg);
+      }
+
+      const data: ApiResponse = await res.json();
+      setObResult(data);
+      setObLoadingStep(5);
+      setTimeout(() => {
+        setObIsLoading(false);
+        setObStep(1);
+      }, 400);
+    } catch (err: unknown) {
+      clearInterval(stepTimer);
+      setObError(err instanceof Error ? err.message : "Something went wrong");
+      setObIsLoading(false);
+    }
+  };
+
+  const handleObUpload = async () => {
+    if (!selectedFile) return;
+    setObIsLoading(true);
+    setObLoadingStep(0);
+    setObError("");
+
+    const stepTimer = setInterval(() => {
+      setObLoadingStep((prev) => Math.min(prev + 1, 4));
+    }, 600);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      clearInterval(stepTimer);
+
+      if (!res.ok) {
+        let msg = "Upload failed";
+        try {
+          const errData = await res.json();
+          msg = errData.detail || msg;
+        } catch {
+          msg = `Server error (${res.status}). Is the backend running?`;
+        }
+        throw new Error(msg);
+      }
+
+      const data: ApiResponse = await res.json();
+      setObResult(data);
+      setObLoadingStep(5);
+      setTimeout(() => {
+        setObIsLoading(false);
+        setObStep(1);
+      }, 400);
+    } catch (err: unknown) {
+      clearInterval(stepTimer);
+      setObError(err instanceof Error ? err.message : "Something went wrong");
+      setObIsLoading(false);
+    }
+  };
+
+  const handleObKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleObLogin();
+  };
+
+  const handleUpdatePreferences = (prefs: string[]) => {
+    if (obResult) {
+      setObResult({
+        ...obResult,
+        profile: { ...obResult.profile, preferences: prefs },
+      });
+    }
+  };
 
   const handleSend = async (text?: string) => {
     const msg = (text ?? input).trim();
@@ -631,6 +809,262 @@ export default function Page() {
     "Central Europe",
     "Beach Ibiza",
   ];
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ONBOARDING FLOW — shown before the chat
+  // ══════════════════════════════════════════════════════════════════════════════
+  if (!onboardingComplete) {
+    return (
+      <>
+        {/* ─── Step 0: Hero Login ─── */}
+        {obStep === 0 && !obIsLoading && (
+          <div className="hero-wrapper fade-in" style={{ position: "relative" }}>
+            <InteractiveBackground />
+
+            <header className="app-navbar">
+              <span className="app-navbar-logo">LuftGo</span>
+            </header>
+
+            <div className="hero-section">
+              <div className="hero-left">
+                <h1 className="hero-title">
+                  We predict the plan. <br /> You enjoy <br /> the{" "}
+                  <span
+                    className="serif-italic"
+                    style={{
+                      borderBottom: "3px solid var(--brand)",
+                      paddingBottom: "2px",
+                    }}
+                  >
+                    journey
+                  </span>
+                  .
+                </h1>
+
+                <p className="hero-subtitle">
+                  We know how you move. Get hyper-personalized itineraries based
+                  on your real travel history.
+                </p>
+
+                <div className="hero-login-box">
+                  {!showUpload ? (
+                    <>
+                      <div className="email-input-wrapper" style={{ marginBottom: "1rem" }}>
+                        <input
+                          type="email"
+                          placeholder="your.email@gmail.com"
+                          value={obEmail}
+                          onChange={(e) => setObEmail(e.target.value)}
+                          onKeyDown={handleObKeyDown}
+                          className="email-input"
+                          style={{
+                            padding: "1.25rem 1.5rem",
+                            fontSize: "1.1rem",
+                            borderRadius: "3rem",
+                          }}
+                          autoFocus
+                        />
+                      </div>
+
+                      {obError && (
+                        <div className="error-msg fade-in">⚠️ {obError}</div>
+                      )}
+
+                      <button
+                        className="upload-btn"
+                        onClick={handleObLogin}
+                        disabled={!obEmail.trim()}
+                        style={{ padding: "1.25rem", fontSize: "1.1rem" }}
+                      >
+                        Plan your trip
+                      </button>
+
+                      <div className="divider">
+                        <span>or</span>
+                      </div>
+
+                      <button
+                        className="secondary-btn"
+                        onClick={() => setShowUpload(true)}
+                      >
+                        📂 Upload Timeline.json manually
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <label
+                        className="file-drop-area"
+                        htmlFor="file-input"
+                        style={{ marginBottom: "1rem" }}
+                      >
+                        {selectedFile ? (
+                          <div className="file-info">
+                            <span>✅</span>
+                            <span>
+                              {selectedFile.name} (
+                              {(selectedFile.size / 1e6).toFixed(1)} MB)
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: "1.8rem" }}>📎</span>
+                            <span
+                              style={{
+                                fontSize: "0.95rem",
+                                color: "var(--muted-foreground)",
+                              }}
+                            >
+                              Select <strong>Timeline.json</strong>
+                            </span>
+                          </>
+                        )}
+                        <input
+                          id="file-input"
+                          type="file"
+                          accept=".json"
+                          onChange={(e) =>
+                            setSelectedFile(e.target.files?.[0] || null)
+                          }
+                          style={{ display: "none" }}
+                        />
+                      </label>
+
+                      {obError && (
+                        <div className="error-msg fade-in">⚠️ {obError}</div>
+                      )}
+
+                      <button
+                        className="upload-btn"
+                        onClick={handleObUpload}
+                        disabled={!selectedFile}
+                        style={{ padding: "1.25rem", fontSize: "1.1rem" }}
+                      >
+                        Analyze Travel History
+                      </button>
+
+                      <div className="divider">
+                        <span>or</span>
+                      </div>
+
+                      <button
+                        className="secondary-btn"
+                        onClick={() => setShowUpload(false)}
+                      >
+                        ✉️ Sign in with Gmail instead
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Image Grid */}
+              <div className="hero-right">
+                <div className="hero-image-grid">
+                  <div
+                    className="hero-img-tall"
+                    style={{
+                      backgroundImage:
+                        "url(https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=800&h=1200&fit=crop)",
+                    }}
+                  />
+                  <div className="hero-img-stack">
+                    <div
+                      className="hero-img-small"
+                      style={{
+                        backgroundImage:
+                          "url(https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=600&h=400&fit=crop)",
+                      }}
+                    />
+                    <div
+                      className="hero-img-small"
+                      style={{
+                        backgroundImage:
+                          "url(https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=600&h=600&fit=crop)",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Steps 1–5: Wizard ─── */}
+        {(obIsLoading || obStep > 0) && (
+          <div className="hero-wrapper" style={{ position: "relative" }}>
+            <InteractiveBackground />
+
+            <header className="app-navbar">
+              <span className="app-navbar-logo">LuftGo</span>
+            </header>
+
+            <div
+              className="wizard-container"
+              style={{ position: "relative", zIndex: 1, flex: 1 }}
+            >
+              {obStep > 0 && obStep <= 5 && (
+                <div className="wizard-top-bar fade-in">
+                  <StepIndicator
+                    currentStep={obStep}
+                    totalSteps={6}
+                    labels={STEP_LABELS}
+                  />
+                </div>
+              )}
+
+              {obIsLoading && <LoadingScreen step={obLoadingStep} />}
+
+              {obStep === 1 && obResult && (
+                <TravelDNAStep
+                  profile={obResult.profile}
+                  onNext={() => setObStep(2)}
+                />
+              )}
+
+              {obStep === 2 && obResult && (
+                <MovementStep
+                  profile={obResult.profile}
+                  onNext={() => setObStep(3)}
+                  onBack={() => setObStep(1)}
+                />
+              )}
+
+              {obStep === 3 && obResult && (
+                <WorldStep
+                  profile={obResult.profile}
+                  flights={obResult.flights || []}
+                  onNext={() => setObStep(4)}
+                  onBack={() => setObStep(2)}
+                />
+              )}
+
+              {obStep === 4 && obResult && (
+                <StyleStep
+                  profile={obResult.profile}
+                  onUpdatePreferences={handleUpdatePreferences}
+                  onNext={() => setObStep(5)}
+                  onBack={() => setObStep(3)}
+                />
+              )}
+
+              {obStep === 5 && obResult && (
+                <SuggestionsStep
+                  suggestions={obResult.suggestions}
+                  email={obResult.email}
+                  onBack={() => setObStep(4)}
+                  onFinish={() => setOnboardingComplete(true)}
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // CHAT UI — shown after onboarding is complete
+  // ══════════════════════════════════════════════════════════════════════════════
 
   return (
     <div className="flex font-sans h-screen bg-gray-50 text-gray-900">

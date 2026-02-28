@@ -418,3 +418,66 @@ async def export_trip_ics(request: Request) -> Response:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+# ─── Onboarding endpoints (Timeline analysis) ─────────────────────────────────
+
+from pydantic import BaseModel
+
+
+class LoginRequest(BaseModel):
+    email: str
+
+
+@app.get("/api/emails")
+async def list_emails() -> dict:
+    """List available demo emails (for the frontend hint)."""
+    from services.timeline_analysis import EMAIL_MAPPING
+
+    return {"emails": list(EMAIL_MAPPING.keys())}
+
+
+@app.post("/api/login")
+async def login(body: LoginRequest) -> dict:
+    """Look up a user's Timeline by their Gmail and return analysis + suggestions."""
+    from services.timeline_analysis import login_with_email
+
+    email = body.email.strip().lower()
+    if not email:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    result = login_with_email(email)
+    if result is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=404,
+            detail=f"No timeline data found for {email}. Try one of the demo accounts.",
+        )
+    return result
+
+
+@app.post("/api/upload")
+async def upload_timeline(request: Request) -> dict:
+    """Upload a Timeline.json file directly (fallback method)."""
+    import json as _json
+    from services.timeline_analysis import upload_and_analyze
+    from fastapi import HTTPException
+
+    form = await request.form()
+    file = form.get("file")
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+
+    content = await file.read()
+    try:
+        data = _json.loads(content)
+    except _json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+
+    try:
+        return upload_and_analyze(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
