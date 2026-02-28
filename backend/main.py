@@ -81,6 +81,8 @@ async def _stream_agent_response(
 ) -> AsyncGenerator[str, None]:
     """Stream ADK runner events as SSE."""
     message = Content(parts=[Part(text=user_text)])
+    # Track tool call id by name for matching function_response back to function_call
+    tool_call_ids: dict[str, str] = {}
 
     try:
         async for event in runner.run_async(
@@ -88,52 +90,64 @@ async def _stream_agent_response(
             session_id=session_id,
             new_message=message,
         ):
-            # Handle function calls (tool invocations)
-            if event.content and event.content.parts:
-                for part in event.content.parts:
-                    # Tool call start
-                    if part.function_call:
-                        yield _sse_event(
-                            {
-                                "type": "tool_call_start",
-                                "toolCall": {
-                                    "id": part.function_call.id
-                                    or event.id
-                                    or str(uuid.uuid4()),
-                                    "name": part.function_call.name,
-                                    "arguments": dict(part.function_call.args)
-                                    if part.function_call.args
-                                    else {},
-                                },
-                            }
-                        )
+            if not event.content or not event.content.parts:
+                continue
 
-                    # Tool call result
-                    elif part.function_response:
-                        result_data = part.function_response.response
-                        result_str = (
-                            json.dumps(result_data)
-                            if isinstance(result_data, dict)
-                            else str(result_data)
-                        )
-                        yield _sse_event(
-                            {
-                                "type": "tool_call_complete",
-                                "toolCallId": part.function_response.id
-                                or part.function_response.name
-                                or "",
-                                "result": result_str,
-                            }
-                        )
+            for part in event.content.parts:
+                # ── Tool call start ──────────────────────────────────────────
+                if part.function_call:
+                    call = part.function_call
+                    tool_id = call.id or f"{call.name}-{uuid.uuid4().hex[:8]}"
+                    if call.name:
+                        tool_call_ids[call.name] = tool_id
+                    yield _sse_event(
+                        {
+                            "type": "tool_call_start",
+                            "toolCall": {
+                                "id": tool_id,
+                                "name": call.name,
+                                "arguments": dict(call.args) if call.args else {},
+                            },
+                        }
+                    )
 
-                    # Text content
-                    elif part.text:
-                        yield _sse_event(
-                            {
-                                "type": "content",
-                                "content": part.text,
-                            }
-                        )
+                # ── Tool call result ─────────────────────────────────────────
+                elif part.function_response:
+                    resp = part.function_response
+                    resp_name = resp.name or ""
+                    # Match by id first, fall back to name lookup
+                    tool_id = resp.id or tool_call_ids.get(resp_name) or resp_name
+                    result_data = resp.response
+                    result_str = (
+                        json.dumps(result_data)
+                        if isinstance(result_data, (dict, list))
+                        else str(result_data)
+                    )
+                    yield _sse_event(
+                        {
+                            "type": "tool_call_complete",
+                            "toolCallId": tool_id,
+                            "result": result_str,
+                        }
+                    )
+
+                # ── Thought / thinking ───────────────────────────────────────
+                elif part.thought and part.text:
+                    yield _sse_event(
+                        {
+                            "type": "thinking",
+                            "content": part.text,
+                        }
+                    )
+
+                # ── Text content ─────────────────────────────────────────────
+                elif part.text:
+                    yield _sse_event(
+                        {
+                            "type": "content",
+                            "content": part.text,
+                        }
+                    )
 
     except Exception as exc:
         yield _sse_event({"type": "error", "error": str(exc)})

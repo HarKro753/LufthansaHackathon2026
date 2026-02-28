@@ -1,30 +1,31 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import type {
+  ChatMessage,
+  ActivityItem,
+  ContentBlock,
+  StreamEvent,
+} from "@/types/chat";
 
 // Requests go through Next.js rewrites (same origin) — no CORS needed
 const API_BASE = "";
 
-export interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-}
-
 interface UseChatReturn {
-  messages: Message[];
+  messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
+  clearError: () => void;
 }
 
 function genId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 export function useChat(): UseChatReturn {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -36,10 +37,11 @@ export function useChat(): UseChatReturn {
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
-      const userMsg: Message = {
+      const userMsg: ChatMessage = {
         id: genId(),
         role: "user",
         content: content.trim(),
+        timestamp: new Date(),
       };
       const assistantId = genId();
 
@@ -61,12 +63,15 @@ export function useChat(): UseChatReturn {
           signal: abortRef.current.signal,
         });
 
-        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to send message");
+        }
         if (!res.body) throw new Error("No response body");
 
         setMessages((prev) => [
           ...prev,
-          { id: assistantId, role: "assistant", content: "" },
+          { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
         ]);
 
         const reader = res.body.getReader();
@@ -84,18 +89,128 @@ export function useChat(): UseChatReturn {
             if (!line.startsWith("data: ")) continue;
             const raw = line.slice(6).trim();
             if (!raw) continue;
+
             try {
-              const event = JSON.parse(raw);
+              const event: StreamEvent = JSON.parse(raw);
+
               if (event.type === "content" && event.content) {
                 setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, content: m.content + event.content }
-                      : m,
-                  ),
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) return msg;
+                    const newContent = msg.content + event.content!;
+                    const acts = msg.activities ?? [];
+
+                    if (acts.length > 0) {
+                      const last = acts[acts.length - 1];
+                      if (last?.type === "content") {
+                        return {
+                          ...msg,
+                          content: newContent,
+                          activities: [
+                            ...acts.slice(0, -1),
+                            { ...last, data: { ...last.data, content: last.data.content + event.content! } },
+                          ],
+                        };
+                      }
+                      const block: ActivityItem = {
+                        type: "content",
+                        data: { id: genId(), content: event.content! } as ContentBlock,
+                      };
+                      return { ...msg, content: newContent, activities: [...acts, block] };
+                    }
+                    return { ...msg, content: newContent };
+                  })
+                );
+              } else if (event.type === "thinking" && event.content) {
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) return msg;
+                    const acts = msg.activities ?? [];
+                    const last = acts[acts.length - 1];
+                    if (last?.type === "thinking") {
+                      return {
+                        ...msg,
+                        activities: [
+                          ...acts.slice(0, -1),
+                          { ...last, data: { ...last.data, content: last.data.content + event.content! } },
+                        ],
+                      };
+                    }
+                    return {
+                      ...msg,
+                      activities: [...acts, { type: "thinking", data: { id: genId(), content: event.content! } }],
+                    };
+                  })
+                );
+              } else if (event.type === "tool_call_start" && event.toolCall) {
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) return msg;
+                    const exists = msg.activities?.find(
+                      (a) => a.type === "tool_call" && a.data.id === event.toolCall!.id
+                    );
+                    if (exists) return msg;
+                    return {
+                      ...msg,
+                      activities: [
+                        ...(msg.activities ?? []),
+                        {
+                          type: "tool_call",
+                          data: {
+                            id: event.toolCall!.id,
+                            name: event.toolCall!.name,
+                            arguments: event.toolCall!.arguments,
+                            status: "executing" as const,
+                          },
+                        },
+                      ],
+                    };
+                  })
+                );
+              } else if (event.type === "tool_call_args" && event.toolCallId) {
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) return msg;
+                    return {
+                      ...msg,
+                      activities: msg.activities?.map((a) =>
+                        a.type === "tool_call" && a.data.id === event.toolCallId
+                          ? { ...a, data: { ...a.data, arguments: event.arguments! } }
+                          : a
+                      ),
+                    };
+                  })
+                );
+              } else if (event.type === "tool_call_complete" && event.toolCallId) {
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) return msg;
+                    return {
+                      ...msg,
+                      activities: msg.activities?.map((a) =>
+                        a.type === "tool_call" && a.data.id === event.toolCallId
+                          ? { ...a, data: { ...a.data, status: "completed" as const, result: event.result } }
+                          : a
+                      ),
+                    };
+                  })
+                );
+              } else if (event.type === "tool_call_error" && event.toolCallId) {
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) return msg;
+                    return {
+                      ...msg,
+                      activities: msg.activities?.map((a) =>
+                        a.type === "tool_call" && a.data.id === event.toolCallId
+                          ? { ...a, data: { ...a.data, status: "error" as const, error: event.error } }
+                          : a
+                      ),
+                    };
+                  })
                 );
               } else if (event.type === "error") {
-                throw new Error(event.error);
+                throw new Error(event.error ?? "Unknown error");
               }
             } catch (e) {
               if (e instanceof SyntaxError) continue;
@@ -118,14 +233,13 @@ export function useChat(): UseChatReturn {
   const clearMessages = useCallback(async (): Promise<void> => {
     abortRef.current?.abort();
     try {
-      await fetch(`${API_BASE}/api/session`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      await fetch(`${API_BASE}/api/session`, { method: "DELETE", credentials: "include" });
     } catch {}
     setMessages([]);
     setError(null);
   }, []);
 
-  return { messages, isLoading, error, sendMessage, clearMessages };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { messages, isLoading, error, sendMessage, clearMessages, clearError };
 }
