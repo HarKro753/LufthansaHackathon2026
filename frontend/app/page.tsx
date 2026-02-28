@@ -10,6 +10,7 @@ import { TripMap } from "@/components/TripMap";
 import { CalendarExport } from "@/components/CalendarExport";
 import type { ChatMessage, ActivityItem, ToolCall } from "@/types/chat";
 import { motion } from "motion/react";
+import { InteractiveBackground } from "@/components/InteractiveBackground";
 
 // ─── Markdown components ──────────────────────────────────────────────────────
 
@@ -378,7 +379,9 @@ export default function Page() {
   return (
     <div className="flex font-sans h-screen bg-gray-50 text-gray-900">
       {/* ─── Left: Chat Panel ─── */}
-      <div className="flex flex-col w-[45%] min-w-[380px] max-w-[540px] bg-white border-r border-gray-200 shadow-xl z-10 relative">
+      <div className="flex flex-col w-[45%] min-w-[380px] max-w-[540px] bg-white border-r border-gray-200 shadow-xl z-10 relative overflow-hidden">
+        {/* Animated Background */}
+        <InteractiveBackground />
 
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
@@ -399,7 +402,7 @@ export default function Page() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto scroll-smooth">
+        <div className="flex-1 overflow-y-auto scroll-smooth relative z-10">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-5 px-6 text-center">
               {/* Animated Figma Illustration */}
