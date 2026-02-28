@@ -10,48 +10,54 @@ import { TripMap } from "@/components/TripMap";
 import { CalendarExport } from "@/components/CalendarExport";
 import type { ChatMessage, ActivityItem, ToolCall } from "@/types/chat";
 
-// ─── Markdown ────────────────────────────────────────────────────────────────
+// ─── Markdown components ──────────────────────────────────────────────────────
 
 const md: Components = {
-  h1: ({ children }) => <h1 className="text-2xl font-bold text-white mt-6 mb-4">{children}</h1>,
-  h2: ({ children }) => <h2 className="text-xl font-bold text-white mt-5 mb-3">{children}</h2>,
-  h3: ({ children }) => <h3 className="text-lg font-semibold text-white mt-4 mb-2">{children}</h3>,
-  p: ({ children }) => <p className="text-[15px] leading-relaxed text-[#ececec] mb-3">{children}</p>,
-  strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
-  em: ({ children }) => <em className="italic text-[#d0d0d0]">{children}</em>,
+  h1: ({ children }) => <h1 className="text-2xl font-bold text-gray-900 mt-6 mb-4">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-xl font-bold text-gray-900 mt-5 mb-3">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-2">{children}</h3>,
+  p: ({ children }) => <p className="text-[15px] leading-relaxed text-gray-700 mb-3">{children}</p>,
+  strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+  em: ({ children }) => <em className="italic text-gray-600">{children}</em>,
   a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#58a6ff] hover:underline">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
       {children}
     </a>
   ),
-  ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-[#ececec]">{children}</ul>,
-  ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-[#ececec]">{children}</ol>,
+  ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-700">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-700">{children}</ol>,
   li: ({ children }) => <li className="text-[15px] leading-relaxed">{children}</li>,
   code: ({ className, children }) =>
     !className ? (
-      <code className="bg-[#3a3a3a] px-1.5 py-0.5 rounded text-sm text-[#ff7b72] font-mono">{children}</code>
+      <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm text-pink-600 font-mono">{children}</code>
     ) : (
-      <code className="block bg-[#1e1e1e] p-4 rounded-lg text-sm text-[#e6e6e6] font-mono overflow-x-auto my-3">
+      <code className="block bg-gray-50 p-4 rounded-lg text-sm text-gray-800 font-mono overflow-x-auto my-3 border border-gray-100">
         {children}
       </code>
     ),
-  pre: ({ children }) => <pre className="bg-[#1e1e1e] p-4 rounded-lg overflow-x-auto my-3">{children}</pre>,
+  pre: ({ children }) => (
+    <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto my-3 border border-gray-100">{children}</pre>
+  ),
   blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-[#58a6ff] pl-4 py-2 my-3 bg-[#2a2a2a] rounded-r text-[#d0d0d0] italic">
+    <blockquote className="border-l-4 border-purple-400 pl-4 py-2 my-3 bg-purple-50 rounded-r text-gray-600 italic">
       {children}
     </blockquote>
   ),
   table: ({ children }) => (
     <div className="overflow-x-auto my-4">
-      <table className="min-w-full border-collapse border border-[#444]">{children}</table>
+      <table className="min-w-full border-collapse border border-gray-200">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-[#2a2a2a]">{children}</thead>,
-  tbody: ({ children }) => <tbody className="divide-y divide-[#444]">{children}</tbody>,
-  tr: ({ children }) => <tr className="border-b border-[#444]">{children}</tr>,
-  th: ({ children }) => <th className="px-4 py-2 text-left text-sm font-semibold text-white border border-[#444]">{children}</th>,
-  td: ({ children }) => <td className="px-4 py-2 text-sm text-[#ececec] border border-[#444]">{children}</td>,
-  hr: () => <hr className="border-[#444] my-4" />,
+  thead: ({ children }) => <thead className="bg-gray-50">{children}</thead>,
+  tbody: ({ children }) => <tbody className="divide-y divide-gray-200">{children}</tbody>,
+  tr: ({ children }) => <tr className="border-b border-gray-200">{children}</tr>,
+  th: ({ children }) => (
+    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-900 border border-gray-200">{children}</th>
+  ),
+  td: ({ children }) => (
+    <td className="px-4 py-2 text-sm text-gray-700 border border-gray-200">{children}</td>
+  ),
+  hr: () => <hr className="border-gray-200 my-4" />,
 };
 
 // ─── Tool names ───────────────────────────────────────────────────────────────
@@ -67,50 +73,111 @@ const toolDisplayNames: Record<string, string> = {
   get_trip: "View Trip",
 };
 
-// ─── Thinking block ───────────────────────────────────────────────────────────
+// ─── Animated SVG Loading dots ────────────────────────────────────────────────
 
-function ThinkingBlock({ content }: { content: string }) {
+function LoadingAnimation() {
   return (
-    <div className="flex items-start gap-2 mb-3 p-3 bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg">
-      <svg className="w-4 h-4 text-[#a78bfa] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-        />
+    <div className="flex items-center gap-1 py-2">
+      <svg className="w-12 h-5" viewBox="0 0 40 16" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="6" cy="8" r="4" fill="#C084FC">
+          <animate
+            attributeName="cy"
+            calcMode="spline"
+            dur="0.7s"
+            values="8;3;8"
+            keySplines=".33,.66,.66,1;.33,0,.66,.33"
+            begin="0s"
+            repeatCount="indefinite"
+          />
+        </circle>
+        <circle cx="20" cy="8" r="4" fill="#A855F7">
+          <animate
+            attributeName="cy"
+            calcMode="spline"
+            dur="0.7s"
+            values="8;3;8"
+            keySplines=".33,.66,.66,1;.33,0,.66,.33"
+            begin="0.12s"
+            repeatCount="indefinite"
+          />
+        </circle>
+        <circle cx="34" cy="8" r="4" fill="#7C3AED">
+          <animate
+            attributeName="cy"
+            calcMode="spline"
+            dur="0.7s"
+            values="8;3;8"
+            keySplines=".33,.66,.66,1;.33,0,.66,.33"
+            begin="0.24s"
+            repeatCount="indefinite"
+          />
+        </circle>
       </svg>
-      <p className="text-sm text-[#d0d0d0] leading-relaxed">{content}</p>
     </div>
   );
 }
 
-// ─── Tool call card ───────────────────────────────────────────────────────────
+// ─── Thinking block ───────────────────────────────────────────────────────────
+
+function ThinkingBlock({ content }: { content: string }) {
+  return (
+    <div className="flex items-start gap-2 mb-3 p-3 bg-purple-50 border border-purple-100 rounded-xl">
+      <svg
+        className="w-4 h-4 text-purple-400 mt-0.5 shrink-0 animate-pulse"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+      <p className="text-sm text-purple-700 leading-relaxed">{content}</p>
+    </div>
+  );
+}
+
+// ─── Tool icons ───────────────────────────────────────────────────────────────
 
 function ToolIcon({ name, status }: { name: string; status: ToolCall["status"] }) {
   if (status === "executing") {
     return (
-      <svg className="w-4 h-4 animate-spin text-[#58a6ff]" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      <svg className="w-4 h-4 text-purple-500 animate-spin" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
   if (status === "error") {
     return (
-      <svg className="w-4 h-4 text-[#f87171]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+      <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
       </svg>
     );
   }
-  if (name === "search_places") {
+  if (name === "search_places" || name === "google_search") {
     return (
-      <svg className="w-4 h-4 text-[#19C37D]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+      <svg className="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        />
       </svg>
     );
   }
   return (
-    <svg className="w-4 h-4 text-[#19C37D]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
     </svg>
   );
 }
@@ -118,11 +185,19 @@ function ToolIcon({ name, status }: { name: string; status: ToolCall["status"] }
 function formatJson(data: unknown): string {
   try {
     if (typeof data === "string") {
-      try { return JSON.stringify(JSON.parse(data), null, 2); } catch { return data; }
+      try {
+        return JSON.stringify(JSON.parse(data), null, 2);
+      } catch {
+        return data;
+      }
     }
     return JSON.stringify(data, null, 2);
-  } catch { return String(data); }
+  } catch {
+    return String(data);
+  }
 }
+
+// ─── Tool call card ───────────────────────────────────────────────────────────
 
 function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
@@ -132,52 +207,69 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const statusText = () => {
     if (toolCall.status === "executing") {
       const q = args.textQuery ?? args.query ?? args.q;
-      return q ? `Searching for "${q}"...` : `Calling ${displayName}...`;
+      return q ? `Searching for "${q}"...` : `Working on ${displayName}...`;
     }
-    if (toolCall.status === "error") return `Failed — ${displayName}`;
+    if (toolCall.status === "error") return `Failed: ${displayName}`;
     const q = args.textQuery ?? args.query ?? args.q;
-    return q ? `Searched "${q}" via ${displayName}` : `Done — ${displayName}`;
+    return q ? `Found results for "${q}"` : `Completed ${displayName}`;
   };
 
   return (
-    <div className={`mb-3 rounded-lg border transition-all ${
-      toolCall.status === "error" ? "border-[#f87171]/30 bg-[#2a1f1f]"
-      : toolCall.status === "executing" ? "border-[#58a6ff]/30 bg-[#1f2937]"
-      : "border-[#444] bg-[#2a2a2a]"
-    }`}>
+    <div
+      className={`mb-3 rounded-xl border transition-all ${toolCall.status === "error"
+        ? "border-red-200 bg-red-50"
+        : toolCall.status === "executing"
+          ? "border-purple-200 bg-purple-50"
+          : "border-gray-100 bg-white shadow-sm"
+        }`}
+    >
       <button
         onClick={() => toolCall.status !== "executing" && setExpanded(!expanded)}
         disabled={toolCall.status === "executing"}
-        className={`w-full px-4 py-3 flex items-center justify-between text-left rounded-lg transition-colors ${
-          toolCall.status === "executing" ? "cursor-default" : "cursor-pointer hover:bg-[#333]"
-        }`}
+        className={`w-full px-4 py-3 flex items-center justify-between text-left rounded-xl transition-colors ${toolCall.status === "executing" ? "cursor-default" : "cursor-pointer hover:bg-gray-50"
+          }`}
       >
         <div className="flex items-center gap-3">
           <ToolIcon name={toolCall.name} status={toolCall.status} />
-          <span className="text-sm text-[#ececec]">{statusText()}</span>
+          <span
+            className={`text-sm font-medium ${toolCall.status === "executing" ? "text-purple-700" : "text-gray-700"
+              }`}
+          >
+            {statusText()}
+          </span>
         </div>
         {toolCall.status !== "executing" && (
-          <svg className={`w-4 h-4 text-[#8e8ea0] transition-transform ${expanded ? "rotate-180" : ""}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         )}
       </button>
       {expanded && toolCall.status !== "executing" && (
-        <div className="border-t border-[#444] px-4 py-3 space-y-3">
+        <div className="border-t border-gray-100 px-4 py-3 space-y-3 bg-gray-50 rounded-b-xl">
           <div>
-            <div className="text-xs font-medium text-[#8e8ea0] mb-1.5 uppercase tracking-wide">Input</div>
-            <pre className="text-xs text-[#d0d0d0] bg-[#1e1e1e] p-3 rounded-md overflow-x-auto font-mono">
+            <div className="text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+              Input
+            </div>
+            <pre className="text-[11px] text-gray-600 bg-white border border-gray-200 p-3 rounded-lg overflow-x-auto font-mono">
               {formatJson(toolCall.arguments)}
             </pre>
           </div>
           {(toolCall.result ?? toolCall.error) && (
             <div>
-              <div className="text-xs font-medium text-[#8e8ea0] mb-1.5 uppercase tracking-wide">Output</div>
+              <div className="text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                Output
+              </div>
               {toolCall.error ? (
-                <div className="text-xs text-[#f87171] bg-[#1e1e1e] p-3 rounded-md">{toolCall.error}</div>
+                <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 p-3 rounded-lg">
+                  {toolCall.error}
+                </div>
               ) : (
-                <pre className="text-xs text-[#d0d0d0] bg-[#1e1e1e] p-3 rounded-md overflow-x-auto font-mono max-h-64 overflow-y-auto">
+                <pre className="text-[11px] text-gray-600 bg-white border border-gray-200 p-3 rounded-lg overflow-x-auto font-mono max-h-64 overflow-y-auto">
                   {formatJson(toolCall.result)}
                 </pre>
               )}
@@ -195,7 +287,7 @@ function ActivityRenderer({ item }: { item: ActivityItem }) {
   if (item.type === "thinking") return <ThinkingBlock content={item.data.content} />;
   if (item.type === "content") {
     return (
-      <div className="prose prose-invert max-w-none mb-3">
+      <div className="prose prose-sm prose-slate max-w-none mb-3">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
           {item.data.content}
         </ReactMarkdown>
@@ -212,45 +304,38 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const hasActivities = (message.activities?.length ?? 0) > 0;
   const hasContentActivities = message.activities?.some((a) => a.type === "content");
 
-  return (
-    <div className="py-4">
-      <div className="max-w-full mx-auto px-4 flex gap-3">
-        <div className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 text-xs font-bold mt-0.5 ${
-          isUser ? "bg-[#5436DA]" : "bg-[#1a73e8]"
-        } text-white`}>
-          {isUser ? "H" : "LH"}
+  if (isUser) {
+    return (
+      <div className="py-3 px-4 flex justify-end">
+        <div className="bg-black text-white px-5 py-3 rounded-2xl rounded-tr-sm max-w-[85%] shadow-sm">
+          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{message.content}</p>
         </div>
-        <div className="flex-1 min-w-0 pt-0.5">
-          {isUser ? (
-            <p className="text-[15px] leading-relaxed text-[#ececec] whitespace-pre-wrap break-words">
-              {message.content}
-            </p>
-          ) : (
-            <>
-              {hasActivities && (
-                <div className="mb-2">
-                  {message.activities!.map((item, i) => (
-                    <ActivityRenderer key={`${item.data.id}-${i}`} item={item} />
-                  ))}
-                </div>
-              )}
-              {message.content && !hasContentActivities && (
-                <div className="prose prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
-                    {message.content}
-                  </ReactMarkdown>
-                </div>
-              )}
-              {!hasActivities && !message.content && (
-                <div className="flex gap-1 pt-2">
-                  {[0, 1, 2].map((i) => (
-                    <span key={i} className="w-1.5 h-1.5 bg-[#6b6b6b] rounded-full animate-pulse"
-                      style={{ animationDelay: `${i * 150}ms` }} />
-                  ))}
-                </div>
-              )}
-            </>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-2">
+      <div className="max-w-full mx-auto px-4 flex gap-3">
+        <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-1 shadow-sm">
+          LH
+        </div>
+        <div className="flex-1 min-w-0 pt-1">
+          {hasActivities && (
+            <div className="mb-2">
+              {message.activities!.map((item, i) => (
+                <ActivityRenderer key={item.data.id + "-" + i} item={item} />
+              ))}
+            </div>
           )}
+          {message.content && !hasContentActivities && (
+            <div className="prose prose-sm prose-slate max-w-none text-gray-800">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          )}
+          {!hasActivities && !message.content && <LoadingAnimation />}
         </div>
       </div>
     </div>
@@ -272,80 +357,157 @@ export default function Page() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
+  const handleSend = async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || isLoading) return;
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    await sendMessage(text);
+    await sendMessage(msg);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
+  const suggestions = ["Spain and Italy", "France and Germany", "Central Europe", "Beach Ibiza"];
+
   return (
-    <div className="flex h-screen" style={{ background: "#212121", color: "#ececec" }}>
+    <div className="flex font-sans h-screen bg-gray-50 text-gray-900">
       {/* ─── Left: Chat Panel ─── */}
-      <div className="flex flex-col w-1/2 min-w-[380px] border-r border-white/10">
+      <div className="flex flex-col w-[45%] min-w-[380px] max-w-[540px] bg-white border-r border-gray-200 shadow-xl z-10 relative">
+
         {/* Header */}
-        <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
-          <span className="text-sm font-medium text-white/60">LH Travel Agent</span>
+        <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-xl font-black tracking-tight text-black">LuftGo</span>
+          </div>
           <div className="flex items-center gap-2">
             <CalendarExport trip={trip} />
             {messages.length > 0 && (
               <button
                 onClick={clearMessages}
-                className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1.5 rounded hover:bg-white/5"
+                className="text-sm text-gray-500 hover:text-black transition-colors px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 font-medium"
               >
-                New chat
+                Clear
               </button>
             )}
           </div>
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scroll-smooth">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white" style={{ background: "#1a73e8" }}>
-                LH
+            <div className="flex flex-col items-center justify-center h-full gap-5 px-6 text-center">
+              {/* Animated plane SVG */}
+              <div className="w-20 h-20 relative">
+                <svg viewBox="0 0 80 80" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="40" cy="40" r="38" fill="#f3f4f6" />
+                  <g transform="translate(40,40)">
+                    <animateTransform
+                      attributeName="transform"
+                      type="rotate"
+                      from="0 0 0"
+                      to="360 0 0"
+                      dur="8s"
+                      repeatCount="indefinite"
+                    />
+                    <path
+                      d="M0,-18 L4,-8 L16,-12 L12,-4 L20,0 L12,4 L16,12 L4,8 L0,18 L-4,8 L-16,12 L-12,4 L-20,0 L-12,-4 L-16,-12 L-4,-8 Z"
+                      fill="#e9d5ff"
+                      opacity="0.5"
+                    />
+                  </g>
+                  <path
+                    d="M22 40 L38 30 L52 40 L38 36 Z"
+                    fill="#7c3aed"
+                    transform="rotate(-15 40 40)"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      values="0,0; 2,-2; 0,0"
+                      dur="2s"
+                      repeatCount="indefinite"
+                      additive="sum"
+                    />
+                  </path>
+                  <path d="M36 40 L40 46 L44 40" fill="#7c3aed" opacity="0.4" transform="rotate(-15 40 40)">
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      values="0,0; 2,-2; 0,0"
+                      dur="2s"
+                      repeatCount="indefinite"
+                      additive="sum"
+                    />
+                  </path>
+                </svg>
               </div>
-              <h1 className="text-2xl font-semibold text-white/90">What can I help with?</h1>
-              <p className="text-sm text-white/40">Powered by Lufthansa x Google ADK</p>
+              <h1 className="text-3xl font-black text-gray-900 tracking-tight">Plan your perfect trip</h1>
+              <p className="text-base text-gray-500 max-w-xs">
+                I can help you build an itinerary anywhere in the world. Just tell me where you want to go!
+              </p>
             </div>
           ) : (
-            <>
-              {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
+            <div className="pt-4 pb-6 px-2">
+              {messages.map((msg) => (
+                <MessageBubble key={msg.id} message={msg} />
+              ))}
               {isLoading && messages[messages.length - 1]?.role === "user" && (
-                <div className="py-4">
-                  <div className="max-w-full mx-auto px-4 flex gap-3">
-                    <div className="w-7 h-7 rounded-sm bg-[#1a73e8] flex items-center justify-center text-xs font-bold text-white">LH</div>
-                    <div className="flex gap-1 pt-3">
-                      {[0, 1, 2].map((i) => (
-                        <span key={i} className="w-1.5 h-1.5 bg-[#6b6b6b] rounded-full animate-pulse"
-                          style={{ animationDelay: `${i * 150}ms` }} />
-                      ))}
-                    </div>
+                <div className="py-2 px-4 flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-1">
+                    LH
                   </div>
+                  <LoadingAnimation />
                 </div>
               )}
-              <div ref={bottomRef} />
-            </>
+              <div ref={bottomRef} className="h-4" />
+            </div>
           )}
         </div>
 
         {/* Error */}
         {error && (
-          <div className="mx-3 mb-2 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm flex justify-between items-center shrink-0">
-            <span>{error}</span>
-            <button onClick={clearError} className="ml-3 text-red-300/70 hover:text-red-300">✕</button>
+          <div className="mx-4 mb-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex justify-between items-center shrink-0">
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              {error}
+            </span>
+            <button onClick={clearError} className="ml-3 text-red-400 hover:text-red-700 p-1">
+              ✕
+            </button>
           </div>
         )}
 
-        {/* Input */}
-        <div className="px-3 pb-4 pt-2 shrink-0">
-          <div className="flex items-end gap-2 rounded-2xl px-4 py-3" style={{ background: "#2f2f2f" }}>
+        {/* Input area */}
+        <div className="px-5 pb-6 pt-2 shrink-0 bg-white">
+          {/* Suggestion pills — only on empty state */}
+          {messages.length === 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar">
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => handleSend(s)}
+                  className="flex-shrink-0 px-4 py-2 rounded-full border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-black transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input bar */}
+          <div className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm focus-within:shadow-md focus-within:border-purple-300 transition-all p-3">
             <textarea
               ref={textareaRef}
               value={input}
@@ -355,35 +517,56 @@ export default function Page() {
                 const el = textareaRef.current;
                 if (!el) return;
                 el.style.height = "auto";
-                el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+                el.style.height = Math.min(el.scrollHeight, 200) + "px";
               }}
-              placeholder="Plan your trip..."
+              placeholder="Ask anything..."
               rows={1}
               disabled={isLoading}
-              className="flex-1 resize-none bg-transparent text-sm text-white/90 placeholder-white/30 outline-none leading-6"
+              className="w-full resize-none bg-transparent text-[15px] text-gray-900 placeholder-gray-400 outline-none leading-relaxed pb-3 px-1"
             />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
-              style={{ background: input.trim() && !isLoading ? "#fff" : "#444" }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M7 12V2M7 2L3 6M7 2L11 6"
-                  stroke={input.trim() && !isLoading ? "#000" : "#666"}
-                  strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1">
+                {/* Attachment icon */}
+                <button className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+                {/* Calendar icon */}
+                <button className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </button>
+              </div>
+              <button
+                onClick={() => handleSend()}
+                disabled={!input.trim() || isLoading}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${input.trim() && !isLoading ? "bg-black text-white hover:bg-gray-800" : "bg-gray-100 text-gray-400"
+                  }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <p className="text-center text-xs text-white/20 mt-2">
-            LH Travel Agent · Verify flight details before booking
+
+          <p className="text-center text-[11px] text-gray-400 mt-3">
+            We&apos;d love your feedback.{" "}
+            <a href="#" className="underline text-gray-500 hover:text-gray-700">
+              Click to share your thoughts.
+            </a>
           </p>
         </div>
       </div>
 
-      {/* ─── Right: Map Panel ─── */}
-      <div className="flex-1 relative">
+      {/* ─── Right: Map/Destinations Panel ─── */}
+      <div className="flex-1 relative bg-gray-100">
         <TripMap trip={trip} />
       </div>
     </div>
