@@ -5,6 +5,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { useChat } from "@/hooks/useChat";
+import { useTrip } from "@/hooks/useTrip";
+import { TripMap } from "@/components/TripMap";
+import { CalendarExport } from "@/components/CalendarExport";
 import type { ChatMessage, ActivityItem, ToolCall } from "@/types/chat";
 
 // ─── Markdown ────────────────────────────────────────────────────────────────
@@ -56,6 +59,12 @@ const md: Components = {
 const toolDisplayNames: Record<string, string> = {
   search_places: "Google Places",
   google_search: "Google Search",
+  get_routes: "Google Routes",
+  create_trip: "Create Trip",
+  add_to_trip: "Add to Trip",
+  update_trip: "Update Trip",
+  remove_from_trip: "Remove from Trip",
+  get_trip: "View Trip",
 };
 
 // ─── Thinking block ───────────────────────────────────────────────────────────
@@ -99,7 +108,6 @@ function ToolIcon({ name, status }: { name: string; status: ToolCall["status"] }
       </svg>
     );
   }
-  // Default check
   return (
     <svg className="w-4 h-4 text-[#19C37D]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -205,8 +213,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const hasContentActivities = message.activities?.some((a) => a.type === "content");
 
   return (
-    <div className="py-5">
-      <div className="max-w-2xl mx-auto px-4 flex gap-4">
+    <div className="py-4">
+      <div className="max-w-full mx-auto px-4 flex gap-3">
         <div className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 text-xs font-bold mt-0.5 ${
           isUser ? "bg-[#5436DA]" : "bg-[#1a73e8]"
         } text-white`}>
@@ -252,7 +260,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Page() {
-  const { messages, isLoading, error, sendMessage, clearMessages, clearError } = useChat();
+  const { trip, refetch: refetchTrip } = useTrip();
+  const { messages, isLoading, error, sendMessage, clearMessages, clearError } = useChat({
+    onTripMutated: refetchTrip,
+  });
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -274,86 +285,106 @@ export default function Page() {
   };
 
   return (
-    <div className="flex flex-col h-screen" style={{ background: "#212121", color: "#ececec" }}>
-      {messages.length > 0 && (
-        <header className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+    <div className="flex h-screen" style={{ background: "#212121", color: "#ececec" }}>
+      {/* ─── Left: Chat Panel ─── */}
+      <div className="flex flex-col w-1/2 min-w-[380px] border-r border-white/10">
+        {/* Header */}
+        <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
           <span className="text-sm font-medium text-white/60">LH Travel Agent</span>
-          <button onClick={clearMessages} className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1 rounded">
-            New chat
-          </button>
-        </header>
-      )}
-
-      <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white" style={{ background: "#1a73e8" }}>LH</div>
-            <h1 className="text-3xl font-semibold text-white/90">What can I help with?</h1>
-            <p className="text-sm text-white/40">Powered by Lufthansa × Google ADK</p>
+          <div className="flex items-center gap-2">
+            <CalendarExport trip={trip} />
+            {messages.length > 0 && (
+              <button
+                onClick={clearMessages}
+                className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1.5 rounded hover:bg-white/5"
+              >
+                New chat
+              </button>
+            )}
           </div>
-        ) : (
-          <>
-            {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
-            {isLoading && messages[messages.length - 1]?.role === "user" && (
-              <div className="py-5">
-                <div className="max-w-2xl mx-auto px-4 flex gap-4">
-                  <div className="w-7 h-7 rounded-sm bg-[#1a73e8] flex items-center justify-center text-xs font-bold text-white">LH</div>
-                  <div className="flex gap-1 pt-3">
-                    {[0, 1, 2].map((i) => (
-                      <span key={i} className="w-1.5 h-1.5 bg-[#6b6b6b] rounded-full animate-pulse"
-                        style={{ animationDelay: `${i * 150}ms` }} />
-                    ))}
+        </header>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white" style={{ background: "#1a73e8" }}>
+                LH
+              </div>
+              <h1 className="text-2xl font-semibold text-white/90">What can I help with?</h1>
+              <p className="text-sm text-white/40">Powered by Lufthansa x Google ADK</p>
+            </div>
+          ) : (
+            <>
+              {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
+              {isLoading && messages[messages.length - 1]?.role === "user" && (
+                <div className="py-4">
+                  <div className="max-w-full mx-auto px-4 flex gap-3">
+                    <div className="w-7 h-7 rounded-sm bg-[#1a73e8] flex items-center justify-center text-xs font-bold text-white">LH</div>
+                    <div className="flex gap-1 pt-3">
+                      {[0, 1, 2].map((i) => (
+                        <span key={i} className="w-1.5 h-1.5 bg-[#6b6b6b] rounded-full animate-pulse"
+                          style={{ animationDelay: `${i * 150}ms` }} />
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <div ref={bottomRef} />
-          </>
+              )}
+              <div ref={bottomRef} />
+            </>
+          )}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mx-3 mb-2 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm flex justify-between items-center shrink-0">
+            <span>{error}</span>
+            <button onClick={clearError} className="ml-3 text-red-300/70 hover:text-red-300">✕</button>
+          </div>
         )}
+
+        {/* Input */}
+        <div className="px-3 pb-4 pt-2 shrink-0">
+          <div className="flex items-end gap-2 rounded-2xl px-4 py-3" style={{ background: "#2f2f2f" }}>
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onInput={() => {
+                const el = textareaRef.current;
+                if (!el) return;
+                el.style.height = "auto";
+                el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+              }}
+              placeholder="Plan your trip..."
+              rows={1}
+              disabled={isLoading}
+              className="flex-1 resize-none bg-transparent text-sm text-white/90 placeholder-white/30 outline-none leading-6"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+              style={{ background: input.trim() && !isLoading ? "#fff" : "#444" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 12V2M7 2L3 6M7 2L11 6"
+                  stroke={input.trim() && !isLoading ? "#000" : "#666"}
+                  strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+          <p className="text-center text-xs text-white/20 mt-2">
+            LH Travel Agent · Verify flight details before booking
+          </p>
+        </div>
       </div>
 
-      {error && (
-        <div className="mx-4 mb-2 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={clearError} className="ml-3 text-red-300/70 hover:text-red-300">✕</button>
-        </div>
-      )}
-
-      <div className="px-4 pb-5 pt-2 max-w-2xl mx-auto w-full">
-        <div className="flex items-end gap-2 rounded-2xl px-4 py-3" style={{ background: "#2f2f2f" }}>
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onInput={() => {
-              const el = textareaRef.current;
-              if (!el) return;
-              el.style.height = "auto";
-              el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-            }}
-            placeholder="Plan your trip..."
-            rows={1}
-            disabled={isLoading}
-            className="flex-1 resize-none bg-transparent text-sm text-white/90 placeholder-white/30 outline-none leading-6"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
-            style={{ background: input.trim() && !isLoading ? "#fff" : "#444" }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 12V2M7 2L3 6M7 2L11 6"
-                stroke={input.trim() && !isLoading ? "#000" : "#666"}
-                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <p className="text-center text-xs text-white/20 mt-2">
-          LH Travel Agent · Verify flight details before booking
-        </p>
+      {/* ─── Right: Map Panel ─── */}
+      <div className="flex-1 relative">
+        <TripMap trip={trip} />
       </div>
     </div>
   );

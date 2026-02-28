@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type {
   ChatMessage,
   ActivityItem,
@@ -8,8 +8,21 @@ import type {
   StreamEvent,
 } from "@/types/chat";
 
-// Requests go through Next.js rewrites (same origin) — no CORS needed
-const API_BASE = "";
+const API_BASE = "http://localhost:8000";
+const STORAGE_KEY = "lh_chat_messages";
+
+// Tool names that mutate the trip — when these complete, refetch the map
+const TRIP_TOOLS = new Set([
+  "create_trip",
+  "add_to_trip",
+  "update_trip",
+  "remove_from_trip",
+  "get_trip",
+]);
+
+interface UseChatOptions {
+  onTripMutated?: () => void;
+}
 
 interface UseChatReturn {
   messages: ChatMessage[];
@@ -24,11 +37,77 @@ function genId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-export function useChat(): UseChatReturn {
+// --- localStorage helpers (messages only, no activities/thinking — keep it light) ---
+
+interface StoredMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+function saveMessages(messages: ChatMessage[]): void {
+  try {
+    const slim: StoredMessage[] = messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp.toISOString(),
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
+  } catch {
+    // localStorage full or disabled — silently ignore
+  }
+}
+
+function loadMessages(): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const stored: StoredMessage[] = JSON.parse(raw);
+    return stored.map((m) => ({
+      ...m,
+      timestamp: new Date(m.timestamp),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function clearStoredMessages(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export function useChat(options?: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const onTripMutatedRef = useRef(options?.onTripMutated);
+  const initializedRef = useRef(false);
+
+  // Keep callback ref fresh
+  onTripMutatedRef.current = options?.onTripMutated;
+
+  // Restore messages from localStorage on mount
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    const restored = loadMessages();
+    if (restored.length > 0) {
+      setMessages(restored);
+    }
+  }, []);
+
+  // Persist messages to localStorage whenever they change (skip initial empty state)
+  useEffect(() => {
+    if (!initializedRef.current) return;
+    saveMessages(messages);
+  }, [messages]);
 
   const sendMessage = useCallback(
     async (content: string): Promise<void> => {
@@ -44,6 +123,9 @@ export function useChat(): UseChatReturn {
         timestamp: new Date(),
       };
       const assistantId = genId();
+
+      // Track which tool calls are in-flight so we can trigger refetch on complete
+      const pendingToolNames = new Map<string, string>(); // toolCallId -> toolName
 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
@@ -143,6 +225,9 @@ export function useChat(): UseChatReturn {
                   })
                 );
               } else if (event.type === "tool_call_start" && event.toolCall) {
+                // Track tool name for this call ID
+                pendingToolNames.set(event.toolCall.id, event.toolCall.name);
+
                 setMessages((prev) =>
                   prev.map((msg) => {
                     if (msg.id !== assistantId) return msg;
@@ -195,6 +280,12 @@ export function useChat(): UseChatReturn {
                     };
                   })
                 );
+
+                // If this was a trip-mutating tool, trigger immediate map refetch
+                const toolName = pendingToolNames.get(event.toolCallId);
+                if (toolName && TRIP_TOOLS.has(toolName)) {
+                  onTripMutatedRef.current?.();
+                }
               } else if (event.type === "tool_call_error" && event.toolCallId) {
                 setMessages((prev) =>
                   prev.map((msg) => {
@@ -236,6 +327,7 @@ export function useChat(): UseChatReturn {
       await fetch(`${API_BASE}/api/session`, { method: "DELETE", credentials: "include" });
     } catch {}
     setMessages([]);
+    clearStoredMessages();
     setError(null);
   }, []);
 

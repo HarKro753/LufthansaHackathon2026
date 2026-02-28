@@ -250,6 +250,33 @@ async def get_trip_endpoint(request: Request, response: Response) -> dict:
     return {"trip": json.loads(trip.model_dump_json())}
 
 
+@app.get("/api/trip/export")
+async def export_trip_ics(request: Request) -> Response:
+    """Export the current trip as an .ics calendar file."""
+    cookie_id = request.cookies.get("lh_session")
+
+    if not cookie_id:
+        return Response(content="No active session", status_code=404)
+
+    from services import session_store
+    from services.ics_export import generate_ics
+
+    trip = session_store.get_trip(cookie_id)
+    if not trip:
+        return Response(content="No trip found", status_code=404)
+
+    ics_content = generate_ics(trip)
+    safe_name = "".join(c if c.isalnum() else "_" for c in trip.name)
+
+    return Response(
+        content=ics_content,
+        media_type="text/calendar; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}.ics"',
+        },
+    )
+
+
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
