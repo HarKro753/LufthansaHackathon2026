@@ -13,6 +13,7 @@ from pathlib import Path
 from models.session import (
     ChatMessageRecord,
     SessionData,
+    StoredHostelResult,
     StoredPlaceResult,
     StoredRouteResult,
 )
@@ -254,6 +255,28 @@ def get_place_result(
     for p in session.place_results:
         if p.place_index == place_index:
             return p
+    return None
+
+
+def store_hostel_results(
+    session_id: str,
+    results: list[StoredHostelResult],
+) -> None:
+    session = get_or_create_session(session_id)
+    session.hostel_results = results
+    _save_session(session)
+
+
+def get_hostel_result(
+    session_id: str,
+    hostel_index: int,
+) -> StoredHostelResult | None:
+    session = get_session(session_id)
+    if not session or not session.hostel_results:
+        return None
+    for h in session.hostel_results:
+        if h.hostel_index == hostel_index:
+            return h
     return None
 
 

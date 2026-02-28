@@ -1,6 +1,7 @@
 """Add to trip tool — adds a route, stay, or activity to the current trip.
 
-Reference-based: pass routeIndex (from get_routes) or placeIndex (from search_places).
+Reference-based: pass routeIndex (from get_routes), hostelIndex (from search_hostels),
+or placeIndex (from search_places) for activities.
 All data is resolved automatically from cached results.
 """
 
@@ -23,6 +24,7 @@ async def add_to_trip(
     item_type: str,
     selection_reason: str,
     route_index: int = -1,
+    hostel_index: int = -1,
     place_index: int = -1,
     check_in_date: str = "",
     check_out_date: str = "",
@@ -30,15 +32,16 @@ async def add_to_trip(
     scheduled_date: str = "",
     tool_context: ToolContext | None = None,
 ) -> str:
-    """Add a route, stay, or activity to the trip. Reference-based: pass routeIndex (from get_routes) for routes, or placeIndex (from search_places) for stays/activities. For stays also pass checkInDate and checkOutDate as ISO 8601 datetime. For activities optionally pass activityType and scheduledDate.
+    """Add a route, stay, or activity to the trip. Reference-based: pass routeIndex (from get_routes) for routes, hostelIndex (from search_hostels) for stays, or placeIndex (from search_places) for activities. For stays the check-in/check-out dates are taken from the search_hostels results automatically. For activities optionally pass activityType and scheduledDate.
 
     Args:
         item_type: 'route', 'stay', or 'activity'.
         selection_reason: Why this option was selected.
         route_index: Route: routeIndex from get_routes results. Use -1 if not applicable.
-        place_index: Stay/Activity: placeIndex from search_places results. Use -1 if not applicable.
-        check_in_date: Stay: Check-in date/time (ISO 8601, e.g. 2026-03-15T14:00:00).
-        check_out_date: Stay: Check-out date/time (ISO 8601, e.g. 2026-03-17T11:00:00).
+        hostel_index: Stay: hostelIndex from search_hostels results. Use -1 if not applicable.
+        place_index: Activity: placeIndex from search_places results. Use -1 if not applicable.
+        check_in_date: Stay: Override check-in date/time (ISO 8601). Usually auto-resolved from search_hostels.
+        check_out_date: Stay: Override check-out date/time (ISO 8601). Usually auto-resolved from search_hostels.
         activity_type: Activity type: 'restaurant', 'attraction', or 'activity'. Defaults to 'activity'.
         scheduled_date: Activity: Scheduled date/time (ISO 8601).
 
@@ -57,8 +60,8 @@ async def add_to_trip(
     if item_type == "route":
         return _add_route(session_id, route_index, selection_reason)
     if item_type == "stay":
-        return _add_stay(
-            session_id, place_index, check_in_date, check_out_date, selection_reason
+        return _add_stay_from_hostel(
+            session_id, hostel_index, check_in_date, check_out_date, selection_reason
         )
     if item_type == "activity":
         return _add_activity(
@@ -130,47 +133,75 @@ def _add_route(session_id: str, route_index: int, reason: str) -> str:
     return json.dumps({"success": True, "itemType": "route", "itemId": route.id})
 
 
-def _add_stay(
-    session_id: str, place_index: int, check_in: str, check_out: str, reason: str
+def _add_stay_from_hostel(
+    session_id: str,
+    hostel_index: int,
+    check_in_override: str,
+    check_out_override: str,
+    reason: str,
 ) -> str:
-    if place_index < 0:
+    if hostel_index < 0:
         return json.dumps(
             {
-                "error": "place_index is required. Use the placeIndex from search_places results."
+                "error": "hostel_index is required. Use the hostelIndex from search_hostels results."
             }
         )
 
-    stored = session_store.get_place_result(session_id, place_index)
+    stored = session_store.get_hostel_result(session_id, hostel_index)
     if not stored:
         return json.dumps(
             {
-                "error": f"No place found for placeIndex {place_index}. Call search_places first."
+                "error": f"No hostel found for hostelIndex {hostel_index}. Call search_hostels first."
             }
         )
 
-    check_in_dt = parse_date(check_in)
+    # Use override dates if provided, otherwise fall back to stored search dates
+    check_in_dt = parse_date(check_in_override) if check_in_override else None
+    if not check_in_dt and stored.check_in:
+        check_in_dt = parse_date(stored.check_in)
     if not check_in_dt:
-        return json.dumps({"error": "check_in_date is required (ISO 8601)"})
+        return json.dumps({"error": "check_in_date could not be resolved"})
 
-    check_out_dt = parse_date(check_out)
+    check_out_dt = parse_date(check_out_override) if check_out_override else None
+    if not check_out_dt and stored.check_out:
+        check_out_dt = parse_date(stored.check_out)
     if not check_out_dt:
-        return json.dumps({"error": "check_out_date is required (ISO 8601)"})
+        return json.dumps({"error": "check_out_date could not be resolved"})
 
     nights = max(
         1, math.ceil((check_out_dt.timestamp() - check_in_dt.timestamp()) / 86400)
     )
+
+    # Pick cheapest price option
+    cheapest_price = stored.cheapest_price
+    booking_source: str | None = None
+    booking_link: str | None = None
+    if stored.prices:
+        best = min(stored.prices, key=lambda p: p.price)
+        cheapest_price = best.price
+        booking_source = best.source
+        booking_link = best.link
+
+    total_price = cheapest_price * nights if cheapest_price else None
 
     stay = TripStay(
         id=uuid.uuid4().hex,
         name=stored.name,
         address=stored.address,
         coordinates=stored.coordinates,
-        place_id=stored.place_id,
+        entity_id=stored.entity_id,
         check_in_date=check_in_dt,
         check_out_date=check_out_dt,
         nights=nights,
+        price_per_night=cheapest_price,
+        total_price=total_price,
+        currency=stored.currency,
+        booking_source=booking_source,
+        booking_link=booking_link,
         rating=stored.rating,
-        website=stored.website,
+        reviews=stored.reviews,
+        stars=stored.stars,
+        amenities=stored.amenities,
         selection_reason=reason,
     )
 

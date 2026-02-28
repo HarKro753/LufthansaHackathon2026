@@ -41,6 +41,37 @@ class StoredPlaceResult(BaseModel):
     website: str | None = None
 
 
+class HostelPriceOption(BaseModel):
+    """A single price option from a booking provider."""
+
+    source: str
+    price: float
+    currency: str = "EUR"
+    room_type: str | None = None
+    free_cancellation: bool = False
+    link: str | None = None
+
+
+class StoredHostelResult(BaseModel):
+    """Full hostel data stored server-side for reference by add_to_trip."""
+
+    hostel_index: int
+    name: str
+    address: str = ""
+    entity_id: str | None = None
+    coordinates: Coordinates | None = None
+    rating: float | None = None
+    reviews: int | None = None
+    stars: int | None = None
+    amenities: list[str] | None = None
+    prices: list[HostelPriceOption] | None = None
+    cheapest_price: float | None = None
+    currency: str = "EUR"
+    images: list[str] | None = None
+    check_in: str | None = None
+    check_out: str | None = None
+
+
 class ChatMessageRecord(BaseModel):
     """A single persisted chat message (user or assistant text only)."""
 
@@ -58,4 +89,5 @@ class SessionData(BaseModel):
     trip: TripState | None = None
     route_results: list[StoredRouteResult] | None = None
     place_results: list[StoredPlaceResult] | None = None
+    hostel_results: list[StoredHostelResult] | None = None
     chat_history: list[ChatMessageRecord] = Field(default_factory=list)

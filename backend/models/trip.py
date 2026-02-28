@@ -55,12 +55,19 @@ class TripStay(BaseModel):
     address: str
     coordinates: Coordinates | None = None
     place_id: str | None = None
+    entity_id: str | None = None
     check_in_date: datetime
     check_out_date: datetime
     nights: int
     price_per_night: float | None = None
     total_price: float | None = None
+    currency: str = "EUR"
+    booking_source: str | None = None
+    booking_link: str | None = None
     rating: float | None = None
+    reviews: int | None = None
+    stars: int | None = None
+    amenities: list[str] | None = None
     website: str | None = None
     selection_reason: str = ""
 
