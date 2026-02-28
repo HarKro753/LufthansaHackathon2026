@@ -10,7 +10,7 @@ import type {
 } from "@/types/chat";
 import type { TripState } from "@/types/trip";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "";
 
 // Tool names that mutate the trip — when these complete, refetch the map
 const TRIP_TOOLS = new Set([

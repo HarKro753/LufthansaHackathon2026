@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { TripState } from "@/types/trip";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "";
 
 interface CalendarExportProps {
   trip: TripState | null;

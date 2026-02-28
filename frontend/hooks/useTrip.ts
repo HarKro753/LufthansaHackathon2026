@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { TripState } from "@/types/trip";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "";
 const POLL_INTERVAL_MS = 5000;
 
 interface UseTripReturn {

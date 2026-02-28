@@ -20,19 +20,32 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
-            echo "tag=hackathon-project-$VERSION" >> $GITHUB_OUTPUT
-            echo "Building tagged release: hackathon-project-$VERSION"
+            echo "backend_tag=hackathon-backend-$VERSION" >> $GITHUB_OUTPUT
+            echo "frontend_tag=hackathon-frontend-$VERSION" >> $GITHUB_OUTPUT
           else
-            echo "tag=hackathon-project-latest" >> $GITHUB_OUTPUT
-            echo "Building latest from main branch"
+            echo "backend_tag=hackathon-backend-latest" >> $GITHUB_OUTPUT
+            echo "frontend_tag=hackathon-frontend-latest" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and push container
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PAT }}" | docker login -u "harkro123" --password-stdin
+
+      - name: Build and push backend
         run: |
-          echo "${{ secrets.DOCKER_PAT }}" | docker login -u "harkro123" --password-stdin
-          docker build -t harkro123/food-facts:${{ steps.version.outputs.tag }} -f backend/Dockerfile backend/
-          docker push harkro123/food-facts:${{ steps.version.outputs.tag }}
-          docker logout
+          docker build -t harkro123/food-facts:${{ steps.version.outputs.backend_tag }} -f backend/Dockerfile backend/
+          docker push harkro123/food-facts:${{ steps.version.outputs.backend_tag }}
+
+      - name: Build and push frontend
+        run: |
+          docker build \
+            --build-arg BACKEND_URL=http://hackathon-backend-prod:8000 \
+            -t harkro123/food-facts:${{ steps.version.outputs.frontend_tag }} \
+            -f frontend/Dockerfile frontend/
+          docker push harkro123/food-facts:${{ steps.version.outputs.frontend_tag }}
+
+      - name: Logout from Docker Hub
+        if: always()
+        run: docker logout
 
   deploy:
     name: Deploy to Kubernetes
