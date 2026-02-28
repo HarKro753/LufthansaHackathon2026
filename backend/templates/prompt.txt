@@ -82,8 +82,11 @@ When adding a **stay** (hostel) to the trip, extract from the search results and
 - `price_per_night`: Price per night as a number
 - `hostel_currency`: Currency code (default "EUR")
 - `hostel_rating`: Rating if available
+- `hostel_reviews`: Number of reviews if available
+- `hostel_stars`: Star rating (1-5) if available
 - `hostel_booking_link`: Booking URL if available
 - `hostel_booking_source`: Provider name (e.g. "Booking.com")
+- `hostel_image_url`: Image URL of the hostel from search results — ALWAYS pass this if available. Look for "image" fields in organic results or "first_image_url" in the response.
 - `selection_reason`: Why you picked this hostel
 
 **Transport decision guide:**
