@@ -79,11 +79,18 @@ def _sse_event(data: dict) -> str:
 async def _stream_agent_response(
     user_id: str,
     session_id: str,
+    cookie_id: str,
     user_text: str,
 ) -> AsyncGenerator[str, None]:
-    """Stream ADK runner events as SSE."""
+    """Stream ADK runner events as SSE and persist messages."""
+    from services import session_store
+
+    # Persist the user message
+    session_store.append_chat_message(cookie_id, "user", user_text)
+
     message = Content(parts=[Part(text=user_text)])
     tool_call_ids: dict[str, str] = {}
+    assistant_text_parts: list[str] = []
 
     try:
         async for event in runner.run_async(
@@ -142,6 +149,7 @@ async def _stream_agent_response(
 
                 # -- Text content --
                 elif part.text:
+                    assistant_text_parts.append(part.text)
                     yield _sse_event(
                         {
                             "type": "content",
@@ -151,6 +159,11 @@ async def _stream_agent_response(
 
     except Exception as exc:
         yield _sse_event({"type": "error", "error": str(exc)})
+
+    # Persist the full assistant response
+    full_text = "".join(assistant_text_parts)
+    if full_text.strip():
+        session_store.append_chat_message(cookie_id, "assistant", full_text)
 
     yield _sse_event({"type": "done"})
 
@@ -179,8 +192,17 @@ async def chat(
             media_type="text/event-stream",
         )
 
+    # Resolve cookie_id for persistence
+    cookie_id = request.cookies.get("lh_session")
+    if not cookie_id:
+        for cid, (uid, sid) in _session_map.items():
+            if uid == user_id and sid == session_id:
+                cookie_id = cid
+                break
+    cookie_id = cookie_id or ""
+
     streaming_response = StreamingResponse(
-        _stream_agent_response(user_id, session_id, last_user_msg),
+        _stream_agent_response(user_id, session_id, cookie_id, last_user_msg),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -188,13 +210,6 @@ async def chat(
             "X-Accel-Buffering": "no",
         },
     )
-
-    cookie_id = request.cookies.get("lh_session")
-    if not cookie_id:
-        for cid, (uid, sid) in _session_map.items():
-            if uid == user_id and sid == session_id:
-                cookie_id = cid
-                break
 
     if cookie_id:
         streaming_response.set_cookie(
@@ -210,7 +225,7 @@ async def chat(
 
 
 @app.get("/api/session")
-async def get_session(request: Request, response: Response) -> dict:
+async def get_session_endpoint(request: Request, response: Response) -> dict:
     """Return current session info."""
     cookie_id = request.cookies.get("lh_session")
 
@@ -222,6 +237,24 @@ async def get_session(request: Request, response: Response) -> dict:
     return {"sessionId": session_id, "messages": []}
 
 
+@app.get("/api/session/history")
+async def get_session_history(request: Request) -> dict:
+    """Return persisted chat history for the current session."""
+    cookie_id = request.cookies.get("lh_session")
+    if not cookie_id:
+        return {"messages": []}
+
+    from services import session_store
+
+    records = session_store.get_chat_history(cookie_id)
+    return {
+        "messages": [
+            {"role": r.role, "content": r.content, "timestamp": r.timestamp}
+            for r in records
+        ]
+    }
+
+
 @app.delete("/api/session")
 async def clear_session(request: Request, response: Response) -> dict:
     """Clear the current session."""
@@ -229,6 +262,13 @@ async def clear_session(request: Request, response: Response) -> dict:
 
     if cookie_id and cookie_id in _session_map:
         del _session_map[cookie_id]
+
+    # Clear persisted chat history too
+    if cookie_id:
+        from services import session_store
+
+        session_store.clear_chat_history(cookie_id)
+        session_store.clear_trip(cookie_id)
 
     response.delete_cookie("lh_session")
     return {"success": True}

@@ -41,6 +41,14 @@ class StoredPlaceResult(BaseModel):
     website: str | None = None
 
 
+class ChatMessageRecord(BaseModel):
+    """A single persisted chat message (user or assistant text only)."""
+
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
 class SessionData(BaseModel):
     """Persisted session state including trip and cached tool results."""
 
@@ -50,3 +58,4 @@ class SessionData(BaseModel):
     trip: TripState | None = None
     route_results: list[StoredRouteResult] | None = None
     place_results: list[StoredPlaceResult] | None = None
+    chat_history: list[ChatMessageRecord] = Field(default_factory=list)

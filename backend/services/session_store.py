@@ -10,7 +10,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from models.session import SessionData, StoredPlaceResult, StoredRouteResult
+from models.session import (
+    ChatMessageRecord,
+    SessionData,
+    StoredPlaceResult,
+    StoredRouteResult,
+)
 from models.trip import TripActivity, TripRoute, TripState, TripStay
 
 SESSIONS_DIR = Path(os.getcwd()) / ".travelagent" / "sessions"
@@ -250,3 +255,35 @@ def get_place_result(
         if p.place_index == place_index:
             return p
     return None
+
+
+# ── Chat history persistence ──────────────────────────────────────────
+
+
+def append_chat_message(
+    session_id: str,
+    role: str,
+    content: str,
+) -> None:
+    """Append a user or assistant message to the persisted chat history."""
+    session = get_or_create_session(session_id)
+    session.chat_history.append(
+        ChatMessageRecord(role=role, content=content)  # type: ignore[arg-type]
+    )
+    _save_session(session)
+
+
+def get_chat_history(session_id: str) -> list[ChatMessageRecord]:
+    """Return the full persisted chat history for a session."""
+    session = get_session(session_id)
+    if not session:
+        return []
+    return session.chat_history
+
+
+def clear_chat_history(session_id: str) -> None:
+    """Clear the chat history for a session."""
+    session = get_session(session_id)
+    if session:
+        session.chat_history = []
+        _save_session(session)

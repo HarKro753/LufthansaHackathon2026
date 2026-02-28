@@ -9,7 +9,6 @@ import type {
 } from "@/types/chat";
 
 const API_BASE = "http://localhost:8000";
-const STORAGE_KEY = "lh_chat_messages";
 
 // Tool names that mutate the trip — when these complete, refetch the map
 const TRIP_TOOLS = new Set([
@@ -37,51 +36,6 @@ function genId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-// --- localStorage helpers (messages only, no activities/thinking — keep it light) ---
-
-interface StoredMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-}
-
-function saveMessages(messages: ChatMessage[]): void {
-  try {
-    const slim: StoredMessage[] = messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp.toISOString(),
-    }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
-  } catch {
-    // localStorage full or disabled — silently ignore
-  }
-}
-
-function loadMessages(): ChatMessage[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const stored: StoredMessage[] = JSON.parse(raw);
-    return stored.map((m) => ({
-      ...m,
-      timestamp: new Date(m.timestamp),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function clearStoredMessages(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
-  }
-}
-
 export function useChat(options?: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -93,21 +47,28 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
   // Keep callback ref fresh
   onTripMutatedRef.current = options?.onTripMutated;
 
-  // Restore messages from localStorage on mount
+  // On mount: restore chat history from the backend session
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-    const restored = loadMessages();
-    if (restored.length > 0) {
-      setMessages(restored);
-    }
-  }, []);
 
-  // Persist messages to localStorage whenever they change (skip initial empty state)
-  useEffect(() => {
-    if (!initializedRef.current) return;
-    saveMessages(messages);
-  }, [messages]);
+    fetch(`${API_BASE}/api/session/history`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : { messages: [] }))
+      .then((data: { messages: { role: string; content: string; timestamp: string }[] }) => {
+        if (data.messages.length > 0) {
+          const restored: ChatMessage[] = data.messages.map((m, i) => ({
+            id: `restored-${i}-${Date.now()}`,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            timestamp: new Date(m.timestamp),
+          }));
+          setMessages(restored);
+        }
+      })
+      .catch(() => {
+        // Backend down — no history to restore
+      });
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string): Promise<void> => {
@@ -125,7 +86,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
       const assistantId = genId();
 
       // Track which tool calls are in-flight so we can trigger refetch on complete
-      const pendingToolNames = new Map<string, string>(); // toolCallId -> toolName
+      const pendingToolNames = new Map<string, string>();
 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
@@ -225,7 +186,6 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                   })
                 );
               } else if (event.type === "tool_call_start" && event.toolCall) {
-                // Track tool name for this call ID
                 pendingToolNames.set(event.toolCall.id, event.toolCall.name);
 
                 setMessages((prev) =>
@@ -327,7 +287,6 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
       await fetch(`${API_BASE}/api/session`, { method: "DELETE", credentials: "include" });
     } catch {}
     setMessages([]);
-    clearStoredMessages();
     setError(null);
   }, []);
 
