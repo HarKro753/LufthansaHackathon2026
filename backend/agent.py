@@ -24,7 +24,7 @@ from google.adk.agents import Agent
 from services import user_context
 from tools.registry import ALL_TOOLS
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3-flash-preview"
 
 PROMPT_TEMPLATE = (Path(__file__).parent / "templates" / "prompt.txt").read_text()
 

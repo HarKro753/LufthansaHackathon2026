@@ -207,24 +207,9 @@ function LoadingStatus({ activities }: { activities: ActivityItem[] }) {
   const message = toolLoadingMessages[toolName] ?? "Thinking";
 
   return (
-    <div className="flex items-center gap-2.5 py-2 mb-2">
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFF0F3] border border-[#FFB3C1]">
-        <svg
-          className="w-3.5 h-3.5 text-[#FF385C] animate-spin"
-          viewBox="0 0 24 24"
-          fill="none"
-        >
-          <path
-            d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span className="text-sm font-medium text-[#cc1c40]">{message}</span>
-        <BouncingDots />
-      </div>
+    <div className="flex items-center gap-2 py-2 mb-2">
+      <span className="text-sm text-gray-400">{message}</span>
+      <BouncingDots />
     </div>
   );
 }
@@ -444,11 +429,6 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
 
 // ─── Activity renderer ────────────────────────────────────────────────────────
 
-/** Activities that are visible in the chat (not hidden tool calls / thinking) */
-function isVisibleActivity(item: ActivityItem): boolean {
-  return item.type === "content" || item.type === "timeline";
-}
-
 /** Check if ANY tool call in the activities list is still executing */
 function hasExecutingToolCall(activities: ActivityItem[]): boolean {
   return activities.some(
@@ -475,15 +455,73 @@ function ActivityRenderer({
   return null;
 }
 
+// ─── Collapsible text block ────────────────────────────────────────────────────
+
+function CollapsibleText({
+  content,
+  defaultCollapsed,
+}: {
+  content: string;
+  defaultCollapsed: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  if (!content) return null;
+
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => setCollapsed(false)}
+        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors py-1"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+        Show response
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setCollapsed(true)}
+        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors py-1 mb-1"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+        Hide response
+      </button>
+      <div className="prose prose-sm prose-slate max-w-none text-gray-800">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  message,
+  isStreaming,
+  isLast,
+}: {
+  message: ChatMessage;
+  isStreaming: boolean;
+  isLast: boolean;
+}) {
   const isUser = message.role === "user";
   const activities = message.activities ?? [];
   const hasTimeline = activities.some((a) => a.type === "timeline");
 
-  // Show contextual loading status whenever a tool call is executing
-  const isWorking = hasExecutingToolCall(activities);
+  // Show loading whenever the stream is active and a tool is running,
+  // OR when the stream is active but nothing visible has appeared yet
+  const isWorking =
+    isStreaming &&
+    (hasExecutingToolCall(activities) || !hasTimeline);
 
   // Find the last timeline item for the connector line
   const timelineItems = activities.filter((a) => a.type === "timeline");
@@ -492,20 +530,12 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       ? timelineItems[timelineItems.length - 1].data
       : null;
 
-  // Collect trailing text: all content after the last timeline item (or all if no timeline)
-  const lastTimelineIndex = activities.reduce(
-    (acc, item, i) => (item.type === "timeline" ? i : acc),
-    -1,
-  );
-  const trailingContent = activities
-    .slice(lastTimelineIndex + 1)
-    .filter((a) => a.type === "content")
-    .map((a) => (a as { type: "content"; data: { content: string } }).data.content)
-    .join("");
+  // Text content: use raw message content (accumulated from all content events)
+  // Only show text AFTER streaming is done — never during
+  const textContent = !isStreaming ? message.content : "";
 
-  // For messages with no activities, use the raw content
-  const fallbackContent =
-    !activities.length && message.content ? message.content : "";
+  // Collapse text in older messages that also have timeline cards
+  const shouldCollapse = !isLast && hasTimeline;
 
   if (isUser) {
     return (
@@ -522,53 +552,43 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className="py-2">
       <div className="max-w-full mx-auto px-4">
-        {/* Timeline cards — full width, no avatar offset */}
-        {activities.length > 0 && (
+        {/* Timeline cards */}
+        {timelineItems.length > 0 && (
           <div className="mb-2">
             {activities.map((item, i) => {
-              const isLastTimeline =
-                item.type === "timeline" && item.data === lastTimelineId;
-
+              if (item.type !== "timeline") return null;
+              const isLastTl = item.data === lastTimelineId;
               return (
                 <ActivityRenderer
-                  key={
-                    (item.type === "timeline"
-                      ? `tl-${item.data.itemType}-${item.data.data.id}`
-                      : item.data.id) +
-                    "-" +
-                    i
-                  }
+                  key={`tl-${item.data.itemType}-${item.data.data.id}-${i}`}
                   item={item}
-                  isLastTimeline={isLastTimeline}
+                  isLastTimeline={isLastTl}
                 />
               );
             })}
           </div>
         )}
 
-        {/* Loading status */}
+        {/* Loading status — only bouncing dots + context text */}
         {isWorking && <LoadingStatus activities={activities} />}
 
-        {/* Trailing text — only content that comes after the last timeline card */}
-        {trailingContent && (
-          <div className="prose prose-sm prose-slate max-w-none text-gray-800 mt-1">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
-              {trailingContent}
-            </ReactMarkdown>
-          </div>
+        {/* Text — hidden during streaming, collapsible for older messages */}
+        {textContent && (
+          shouldCollapse ? (
+            <CollapsibleText content={textContent} defaultCollapsed />
+          ) : (
+            <div className="prose prose-sm prose-slate max-w-none text-gray-800 mt-1">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
+                {textContent}
+              </ReactMarkdown>
+            </div>
+          )
         )}
 
-        {/* Fallback: no activities at all, just raw markdown */}
-        {fallbackContent && (
-          <div className="prose prose-sm prose-slate max-w-none text-gray-800">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
-              {fallbackContent}
-            </ReactMarkdown>
-          </div>
+        {/* Initial loading — empty assistant message, stream just started */}
+        {isStreaming && !activities.length && !message.content && (
+          <LoadingAnimation />
         )}
-
-        {/* Initial loading — no activities yet, no content */}
-        {!activities.length && !message.content && <LoadingAnimation />}
       </div>
     </div>
   );
@@ -781,17 +801,21 @@ export default function Page() {
             </div>
           ) : (
             <div className="pt-4 pb-6 px-2">
-              {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
-              ))}
-              {isLoading && messages[messages.length - 1]?.role === "user" && (
-                <div className="py-2 px-4 flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-1">
-                    LH
-                  </div>
-                  <LoadingAnimation />
-                </div>
-              )}
+              {messages.map((msg, idx) => {
+                const isLastMsg = idx === messages.length - 1;
+                return (
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    isStreaming={
+                      isLoading &&
+                      msg.role === "assistant" &&
+                      isLastMsg
+                    }
+                    isLast={isLastMsg}
+                  />
+                );
+              })}
               <div ref={bottomRef} className="h-4" />
             </div>
           )}

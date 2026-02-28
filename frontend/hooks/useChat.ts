@@ -400,26 +400,15 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                 const toolName = pendingToolNames.get(event.toolCallId);
                 const isTripTool = toolName !== undefined && TRIP_TOOLS.has(toolName);
 
-                if (isTripTool) {
-                  // For trip-mutating tools: keep "executing" status visible
-                  // while we fetch trip state, then mark completed + inject
-                  // timeline cards in a single atomic setMessages call.
-                  onTripMutatedRef.current?.();
-
-                  const updatedTrip = await fetchTripState();
-                  const newItems = diffTripItems(tripSnapshotIds, updatedTrip);
-
-                  if (newItems.length > 0) {
-                    const updatedIds = collectTripItemIds(updatedTrip);
-                    tripSnapshotIds = updatedIds;
-                  }
-
-                  // Single atomic update: mark complete + inject timeline cards
-                  setMessages((prev) =>
-                    prev.map((msg) => {
-                      if (msg.id !== assistantId) return msg;
-                      const updatedActivities = (msg.activities ?? []).map((a) =>
-                        a.type === "tool_call" && a.data.id === event.toolCallId
+                // Mark the tool call as completed immediately
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== assistantId) return msg;
+                    return {
+                      ...msg,
+                      activities: msg.activities?.map((a) =>
+                        a.type === "tool_call" &&
+                        a.data.id === event.toolCallId
                           ? {
                               ...a,
                               data: {
@@ -429,42 +418,42 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                               },
                             }
                           : a,
-                      );
-                      const timelineActivities: ActivityItem[] = newItems.map(
-                        (item) => ({
-                          type: "timeline" as const,
-                          data: item,
+                      ),
+                    };
+                  }),
+                );
+
+                // For trip-mutating tools: fetch trip state and inject
+                // timeline cards without blocking the SSE read loop
+                if (isTripTool) {
+                  onTripMutatedRef.current?.();
+
+                  fetchTripState().then((updatedTrip) => {
+                    const newItems = diffTripItems(tripSnapshotIds, updatedTrip);
+
+                    if (newItems.length > 0) {
+                      const updatedIds = collectTripItemIds(updatedTrip);
+                      tripSnapshotIds = updatedIds;
+
+                      setMessages((prev) =>
+                        prev.map((msg) => {
+                          if (msg.id !== assistantId) return msg;
+                          const timelineActivities: ActivityItem[] =
+                            newItems.map((item) => ({
+                              type: "timeline" as const,
+                              data: item,
+                            }));
+                          return {
+                            ...msg,
+                            activities: [
+                              ...(msg.activities ?? []),
+                              ...timelineActivities,
+                            ],
+                          };
                         }),
                       );
-                      return {
-                        ...msg,
-                        activities: [...updatedActivities, ...timelineActivities],
-                      };
-                    }),
-                  );
-                } else {
-                  // Non-trip tools: just mark as completed immediately
-                  setMessages((prev) =>
-                    prev.map((msg) => {
-                      if (msg.id !== assistantId) return msg;
-                      return {
-                        ...msg,
-                        activities: msg.activities?.map((a) =>
-                          a.type === "tool_call" &&
-                          a.data.id === event.toolCallId
-                            ? {
-                                ...a,
-                                data: {
-                                  ...a.data,
-                                  status: "completed" as const,
-                                  result: event.result,
-                                },
-                              }
-                            : a,
-                        ),
-                      };
-                    }),
-                  );
+                    }
+                  });
                 }
               } else if (event.type === "tool_call_error" && event.toolCallId) {
                 setMessages((prev) =>
