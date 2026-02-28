@@ -18,10 +18,15 @@ app = FastAPI(title="LH Travel Agent API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=[
+        settings.frontend_url,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 APP_NAME = "lh_travel_agent"
@@ -59,7 +64,8 @@ async def _get_or_create_session(
         value=cookie_id,
         max_age=604800,
         httponly=True,
-        samesite="lax",
+        samesite="none",
+        secure=False,
     )
     return user_id, session.id
 
@@ -186,7 +192,8 @@ async def chat(
             value=cookie_id,
             max_age=604800,
             httponly=True,
-            samesite="lax",
+            samesite="none",
+            secure=False,
         )
 
     return streaming_response

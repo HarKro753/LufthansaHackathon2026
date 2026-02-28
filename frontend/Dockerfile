@@ -14,9 +14,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Allow API URL override at build time (used by Next.js client-side code)
-ARG NEXT_PUBLIC_API_BASE=http://localhost:8000
-ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
+# Backend URL for Next.js rewrite proxy (server-side, not exposed to client)
+ARG BACKEND_URL=http://localhost:8000
+ENV BACKEND_URL=${BACKEND_URL}
 
 RUN bun run build
 

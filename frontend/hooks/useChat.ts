@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useRef } from "react";
 
-const API_BASE = "http://localhost:8000";
+// Requests go through Next.js rewrites (same origin) — no CORS needed
+const API_BASE = "";
 
 export interface Message {
   id: string;
