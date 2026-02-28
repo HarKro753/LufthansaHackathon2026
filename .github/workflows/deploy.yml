@@ -1,0 +1,73 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            echo "tag=hackathon-project-$VERSION" >> $GITHUB_OUTPUT
+            echo "Building tagged release: hackathon-project-$VERSION"
+          else
+            echo "tag=hackathon-project-latest" >> $GITHUB_OUTPUT
+            echo "Building latest from main branch"
+          fi
+
+      - name: Build and push container
+        run: |
+          echo "${{ secrets.DOCKER_PAT }}" | docker login -u "harkro123" --password-stdin
+          docker build -t harkro123/food-facts:${{ steps.version.outputs.tag }} -f backend/Dockerfile backend/
+          docker push harkro123/food-facts:${{ steps.version.outputs.tag }}
+          docker logout
+
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Set up Kubeconfig
+        run: |
+          kubectl config set-cluster local-proxmox \
+            --server=https://tailscale-operator.tail82aae1.ts.net:443 \
+            --insecure-skip-tls-verify
+
+          kubectl config set-credentials github-actions --token=${{ secrets.K8S_SA_TOKEN }}
+
+          kubectl config set-context tailscale-context --cluster=local-proxmox --user=github-actions
+          kubectl config use-context tailscale-context
+
+      - name: Checkout Kubernetes config
+        uses: actions/checkout@v4
+        with:
+          repository: HarKro753/KubernetesConfig
+          path: k8s-config
+          token: ${{ secrets.K8S_REPO_PAT }}
+
+      - name: Deploy to Kubernetes cluster
+        run: |
+          cd k8s-config
+          chmod +x deploy.sh
+          ./deploy.sh hackathon-project
