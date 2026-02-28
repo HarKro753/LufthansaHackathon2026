@@ -8,8 +8,10 @@ To add a new tool:
 
 from mcp.server import FastMCP
 
+from tools.search_hostels import search_hostels
 from tools.search_places import search_places
 
 mcp = FastMCP("travel-tools")
 
+mcp.tool()(search_hostels)
 mcp.tool()(search_places)

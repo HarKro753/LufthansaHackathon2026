@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     lh_client_id: str = ""
     lh_client_secret: str = ""
     hasdata_api_key: str = ""
+    brightdata_api_token: str = ""
+    brightdata_zone_name: str = ""
     port: int = 8000
     frontend_url: str = "http://localhost:3000"
 
