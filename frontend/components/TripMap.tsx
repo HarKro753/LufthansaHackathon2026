@@ -1,50 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import "leaflet/dist/leaflet.css";
-import type { TripState } from "@/types/trip";
-import type L from "leaflet";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  APIProvider,
+  Map,
+  AdvancedMarker,
+  InfoWindow,
+  useAdvancedMarkerRef,
+  useMap,
+} from "@vis.gl/react-google-maps";
+import type { TripState, TripRoute, TripFlight, TripStay, TripActivity } from "@/types/trip";
 
-const LIGHT_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+const MAP_ID = "trip-map";
 
-function decodePolyline(encoded: string): [number, number][] {
-  const points: [number, number][] = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-  while (index < encoded.length) {
-    let shift = 0, result = 0, byte: number;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
-    lat += result & 1 ? ~(result >> 1) : result >> 1;
-    shift = 0; result = 0;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
-    lng += result & 1 ? ~(result >> 1) : result >> 1;
-    points.push([lat / 1e5, lng / 1e5]);
-  }
-  return points;
-}
+const DEFAULT_CENTER = { lat: 48.1351, lng: 11.582 };
+const DEFAULT_ZOOM = 5;
 
 // Well-known airport coordinates for rendering flight lines on the map
-const AIRPORT_COORDS: Record<string, [number, number]> = {
-  FRA: [50.0379, 8.5622], MUC: [48.3538, 11.7861], BER: [52.3667, 13.5033],
-  HAM: [53.6304, 9.9882], DUS: [51.2895, 6.7668], CGN: [50.8659, 7.1427],
-  STR: [48.6899, 9.2220], CPH: [55.6181, 12.6561], AMS: [52.3086, 4.7639],
-  CDG: [49.0097, 2.5479], ORY: [48.7233, 2.3794], LHR: [51.4700, -0.4543],
-  LGW: [51.1537, -0.1821], STN: [51.8850, 0.2350], BCN: [41.2971, 2.0785],
-  MAD: [40.4983, -3.5676], FCO: [41.8003, 12.2389], MXP: [45.6306, 8.7281],
-  VIE: [48.1103, 16.5697], ZRH: [47.4647, 8.5492], BRU: [50.9010, 4.4844],
-  LIS: [38.7756, -9.1354], ATH: [37.9364, 23.9445], IST: [41.2753, 28.7519],
-  WAW: [52.1657, 20.9671], PRG: [50.1008, 14.2600], BUD: [47.4298, 19.2611],
-  OSL: [60.1939, 11.1004], ARN: [59.6519, 17.9186], HEL: [60.3172, 24.9633],
-  DUB: [53.4264, -6.2499], EDI: [55.9500, -3.3725], GVA: [46.2381, 6.1090],
-  NCE: [43.6584, 7.2159], AGP: [36.6749, -4.4991], PMI: [39.5517, 2.7388],
-  TXL: [52.5597, 13.2877], SXF: [52.3800, 13.5225], NUE: [49.4987, 11.0669],
-  JFK: [40.6413, -73.7781], LAX: [33.9416, -118.4085], SFO: [37.6213, -122.3790],
-  ORD: [41.9742, -87.9073], MIA: [25.7959, -80.2870], BKK: [13.6900, 100.7501],
-  SIN: [1.3644, 103.9915], HND: [35.5494, 139.7798], NRT: [35.7647, 140.3864],
-  DXB: [25.2532, 55.3657], DOH: [25.2731, 51.6081],
+const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
+  FRA: { lat: 50.0379, lng: 8.5622 }, MUC: { lat: 48.3538, lng: 11.7861 },
+  BER: { lat: 52.3667, lng: 13.5033 }, HAM: { lat: 53.6304, lng: 9.9882 },
+  DUS: { lat: 51.2895, lng: 6.7668 }, CGN: { lat: 50.8659, lng: 7.1427 },
+  STR: { lat: 48.6899, lng: 9.2220 }, CPH: { lat: 55.6181, lng: 12.6561 },
+  AMS: { lat: 52.3086, lng: 4.7639 }, CDG: { lat: 49.0097, lng: 2.5479 },
+  ORY: { lat: 48.7233, lng: 2.3794 }, LHR: { lat: 51.4700, lng: -0.4543 },
+  LGW: { lat: 51.1537, lng: -0.1821 }, STN: { lat: 51.8850, lng: 0.2350 },
+  BCN: { lat: 41.2971, lng: 2.0785 }, MAD: { lat: 40.4983, lng: -3.5676 },
+  FCO: { lat: 41.8003, lng: 12.2389 }, MXP: { lat: 45.6306, lng: 8.7281 },
+  VIE: { lat: 48.1103, lng: 16.5697 }, ZRH: { lat: 47.4647, lng: 8.5492 },
+  BRU: { lat: 50.9010, lng: 4.4844 }, LIS: { lat: 38.7756, lng: -9.1354 },
+  ATH: { lat: 37.9364, lng: 23.9445 }, IST: { lat: 41.2753, lng: 28.7519 },
+  WAW: { lat: 52.1657, lng: 20.9671 }, PRG: { lat: 50.1008, lng: 14.2600 },
+  BUD: { lat: 47.4298, lng: 19.2611 }, OSL: { lat: 60.1939, lng: 11.1004 },
+  ARN: { lat: 59.6519, lng: 17.9186 }, HEL: { lat: 60.3172, lng: 24.9633 },
+  DUB: { lat: 53.4264, lng: -6.2499 }, EDI: { lat: 55.9500, lng: -3.3725 },
+  GVA: { lat: 46.2381, lng: 6.1090 }, NCE: { lat: 43.6584, lng: 7.2159 },
+  AGP: { lat: 36.6749, lng: -4.4991 }, PMI: { lat: 39.5517, lng: 2.7388 },
+  TXL: { lat: 52.5597, lng: 13.2877 }, SXF: { lat: 52.3800, lng: 13.5225 },
+  NUE: { lat: 49.4987, lng: 11.0669 }, JFK: { lat: 40.6413, lng: -73.7781 },
+  LAX: { lat: 33.9416, lng: -118.4085 }, SFO: { lat: 37.6213, lng: -122.3790 },
+  ORD: { lat: 41.9742, lng: -87.9073 }, MIA: { lat: 25.7959, lng: -80.2870 },
+  BKK: { lat: 13.6900, lng: 100.7501 }, SIN: { lat: 1.3644, lng: 103.9915 },
+  HND: { lat: 35.5494, lng: 139.7798 }, NRT: { lat: 35.7647, lng: 140.3864 },
+  DXB: { lat: 25.2532, lng: 55.3657 }, DOH: { lat: 25.2731, lng: 51.6081 },
 };
 
 const MARKER_COLORS: Record<string, string> = {
@@ -58,173 +57,395 @@ const MARKER_COLORS: Record<string, string> = {
   activity: "#10b981",
 };
 
-function makeDivIcon(leaflet: typeof L, color: string, label: string, price?: number | null) {
-  const displayLabel = price ? "\u20ac" + Math.round(price) + " / " + label : label;
-  const truncated = displayLabel.length > 20 ? displayLabel.slice(0, 19) + "\u2026" : displayLabel;
-  return leaflet.divIcon({
-    html:
-      '<div style="display:inline-flex;align-items:center;padding:6px 12px;background:#ffffff;border-radius:20px;white-space:nowrap;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;font-weight:700;color:#111111;box-shadow:0 4px 12px rgba(0,0,0,0.15);border:2px solid #ffffff;transform:translate(-50%,-50%);gap:6px;">' +
-      '<span style="width:8px;height:8px;border-radius:50%;background-color:' + color + '"></span>' +
-      truncated + "</div>",
-    className: "",
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
+function decodePolyline(encoded: string): google.maps.LatLngLiteral[] {
+  const points: google.maps.LatLngLiteral[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < encoded.length) {
+    let shift = 0, result = 0, byte: number;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return points;
 }
+
+// ─── Marker pill (styled HTML overlay) ───
+
+interface MarkerPillProps {
+  color: string;
+  label: string;
+  price?: number | null;
+}
+
+function MarkerPill({ color, label, price }: MarkerPillProps) {
+  const displayLabel = price ? `\u20ac${Math.round(price)} / ${label}` : label;
+  const truncated = displayLabel.length > 20 ? displayLabel.slice(0, 19) + "\u2026" : displayLabel;
+
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "6px 12px",
+        background: "#ffffff",
+        borderRadius: 20,
+        whiteSpace: "nowrap",
+        fontFamily: "ui-sans-serif, system-ui, sans-serif",
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#111111",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        border: "2px solid #ffffff",
+        gap: 6,
+        transform: "translate(-50%, -50%)",
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          backgroundColor: color,
+          flexShrink: 0,
+        }}
+      />
+      {truncated}
+    </div>
+  );
+}
+
+// ─── Individual marker with InfoWindow ───
+
+interface TripMarkerProps {
+  position: google.maps.LatLngLiteral;
+  color: string;
+  label: string;
+  price?: number | null;
+  popupContent: string;
+  activeMarkerId: string | null;
+  markerId: string;
+  onMarkerClick: (id: string) => void;
+  onInfoClose: () => void;
+}
+
+function TripMarker({
+  position,
+  color,
+  label,
+  price,
+  popupContent,
+  activeMarkerId,
+  markerId,
+  onMarkerClick,
+  onInfoClose,
+}: TripMarkerProps) {
+  const [markerRef, marker] = useAdvancedMarkerRef();
+
+  return (
+    <>
+      <AdvancedMarker
+        ref={markerRef}
+        position={position}
+        onClick={() => onMarkerClick(markerId)}
+      >
+        <MarkerPill color={color} label={label} price={price} />
+      </AdvancedMarker>
+
+      {activeMarkerId === markerId && marker && (
+        <InfoWindow anchor={marker} onCloseClick={onInfoClose}>
+          <div dangerouslySetInnerHTML={{ __html: popupContent }} />
+        </InfoWindow>
+      )}
+    </>
+  );
+}
+
+// ─── Polyline drawing component (uses imperative google.maps API) ───
+
+interface PolylineData {
+  id: string;
+  path: google.maps.LatLngLiteral[];
+  color: string;
+  weight: number;
+  opacity: number;
+  dashPattern?: number[];
+}
+
+function Polylines({ lines }: { lines: PolylineData[] }) {
+  const map = useMap();
+  const polylinesRef = useRef<google.maps.Polyline[]>([]);
+
+  useEffect(() => {
+    if (!map) return;
+
+    // Clear previous polylines
+    for (const p of polylinesRef.current) {
+      p.setMap(null);
+    }
+    polylinesRef.current = [];
+
+    for (const line of lines) {
+      const polyline = new google.maps.Polyline({
+        path: line.path,
+        strokeColor: line.color,
+        strokeWeight: line.weight,
+        strokeOpacity: line.opacity,
+        geodesic: true,
+        icons: line.dashPattern
+          ? [
+              {
+                icon: {
+                  path: "M 0,-1 0,1",
+                  strokeOpacity: 1,
+                  scale: line.weight,
+                },
+                offset: "0",
+                repeat: `${line.dashPattern[0] + line.dashPattern[1]}px`,
+              },
+            ]
+          : undefined,
+        map,
+      });
+      polylinesRef.current.push(polyline);
+    }
+
+    return () => {
+      for (const p of polylinesRef.current) {
+        p.setMap(null);
+      }
+      polylinesRef.current = [];
+    };
+  }, [map, lines]);
+
+  return null;
+}
+
+// ─── Fit bounds controller ───
+
+function FitBounds({ bounds }: { bounds: google.maps.LatLngLiteral[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || bounds.length === 0) return;
+
+    const gmBounds = new google.maps.LatLngBounds();
+    for (const point of bounds) {
+      gmBounds.extend(point);
+    }
+    map.fitBounds(gmBounds, { top: 50, right: 50, bottom: 50, left: 50 });
+  }, [map, bounds]);
+
+  return null;
+}
+
+// ─── Build markers + polylines from trip data ───
+
+interface MarkerData {
+  id: string;
+  position: google.maps.LatLngLiteral;
+  color: string;
+  label: string;
+  price?: number | null;
+  popupContent: string;
+}
+
+function buildMarkers(trip: TripState): MarkerData[] {
+  const markers: MarkerData[] = [];
+
+  // Routes
+  for (const route of trip.routes) {
+    if (route.origin_coordinates) {
+      markers.push({
+        id: `route-origin-${route.id}`,
+        position: { lat: route.origin_coordinates.lat, lng: route.origin_coordinates.lng },
+        color: MARKER_COLORS.route_origin,
+        label: route.origin,
+        popupContent: `<b>${route.origin}</b><br/>${route.origin_address}`,
+      });
+    }
+    if (route.destination_coordinates) {
+      markers.push({
+        id: `route-dest-${route.id}`,
+        position: { lat: route.destination_coordinates.lat, lng: route.destination_coordinates.lng },
+        color: MARKER_COLORS.route_destination,
+        label: route.destination,
+        popupContent: `<b>${route.destination}</b><br/>${route.destination_address}`,
+      });
+    }
+  }
+
+  // Flights
+  for (const flight of trip.flights ?? []) {
+    const originCoords = AIRPORT_COORDS[flight.origin];
+    const destCoords = AIRPORT_COORDS[flight.destination];
+    const priceStr = flight.price ? ` | ${flight.price} ${flight.currency}` : "";
+    const stopsStr = flight.stops === 0 ? "Nonstop" : `${flight.stops} stop${flight.stops > 1 ? "s" : ""}`;
+
+    if (originCoords) {
+      markers.push({
+        id: `flight-origin-${flight.id}`,
+        position: originCoords,
+        color: MARKER_COLORS.flight_origin,
+        label: flight.origin,
+        popupContent: `<b>${flight.origin}</b><br/>${flight.airline} ${flight.flight_number ?? ""}<br/>${stopsStr}${priceStr}`,
+      });
+    }
+    if (destCoords) {
+      markers.push({
+        id: `flight-dest-${flight.id}`,
+        position: destCoords,
+        color: MARKER_COLORS.flight_destination,
+        label: flight.destination,
+        popupContent: `<b>${flight.destination}</b><br/>${flight.airline} ${flight.flight_number ?? ""}<br/>${stopsStr}${priceStr}`,
+      });
+    }
+  }
+
+  // Stays
+  for (const stay of trip.stays) {
+    if (!stay.coordinates) continue;
+    const priceStr = stay.total_price ? ` | ${stay.total_price} EUR` : "";
+    markers.push({
+      id: `stay-${stay.id}`,
+      position: { lat: stay.coordinates.lat, lng: stay.coordinates.lng },
+      color: MARKER_COLORS.stay,
+      label: stay.name,
+      price: stay.total_price,
+      popupContent: `<b>${stay.name}</b><br/>${stay.address}<br/>${stay.nights} night${stay.nights !== 1 ? "s" : ""}${priceStr}`,
+    });
+  }
+
+  // Activities
+  for (const activity of trip.activities) {
+    if (!activity.coordinates) continue;
+    const color = MARKER_COLORS[activity.type] ?? MARKER_COLORS.activity;
+    markers.push({
+      id: `activity-${activity.id}`,
+      position: { lat: activity.coordinates.lat, lng: activity.coordinates.lng },
+      color,
+      label: activity.name,
+      popupContent: `<b>${activity.name}</b><br/>${activity.address}${activity.rating ? `<br/>Rating: ${activity.rating}` : ""}`,
+    });
+  }
+
+  return markers;
+}
+
+function buildPolylines(trip: TripState): PolylineData[] {
+  const lines: PolylineData[] = [];
+
+  // Routes
+  for (const route of trip.routes) {
+    if (route.polyline) {
+      const decoded = decodePolyline(route.polyline);
+      if (decoded.length > 0) {
+        lines.push({
+          id: `route-poly-${route.id}`,
+          path: decoded,
+          color: "#000000",
+          weight: 3,
+          opacity: 0.8,
+          dashPattern: [10, 5],
+        });
+      }
+    } else if (route.origin_coordinates && route.destination_coordinates) {
+      lines.push({
+        id: `route-line-${route.id}`,
+        path: [
+          { lat: route.origin_coordinates.lat, lng: route.origin_coordinates.lng },
+          { lat: route.destination_coordinates.lat, lng: route.destination_coordinates.lng },
+        ],
+        color: "#000000",
+        weight: 3,
+        opacity: 0.7,
+        dashPattern: [8, 6],
+      });
+    }
+  }
+
+  // Flights
+  for (const flight of trip.flights ?? []) {
+    const originCoords = AIRPORT_COORDS[flight.origin];
+    const destCoords = AIRPORT_COORDS[flight.destination];
+    if (originCoords && destCoords) {
+      lines.push({
+        id: `flight-line-${flight.id}`,
+        path: [originCoords, destCoords],
+        color: "#FF385C",
+        weight: 2.5,
+        opacity: 0.7,
+        dashPattern: [10, 8],
+      });
+    }
+  }
+
+  return lines;
+}
+
+// ─── Main component ───
 
 interface TripMapProps {
   trip: TripState | null;
 }
 
 export function TripMap({ trip }: TripMapProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const leafletRef = useRef<typeof L | null>(null);
-  const layerGroupRef = useRef<L.LayerGroup | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    let cancelled = false;
-
-    import("leaflet").then((leaflet) => {
-      if (cancelled || !containerRef.current) return;
-      leafletRef.current = leaflet.default ?? leaflet;
-      const Lf = leafletRef.current;
-      const map = Lf.map(containerRef.current, {
-        center: [48.1351, 11.582],
-        zoom: 5,
-        zoomControl: false,
-        attributionControl: false,
-      });
-      Lf.control.zoom({ position: "topright" }).addTo(map);
-      Lf.tileLayer(LIGHT_TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
-      layerGroupRef.current = Lf.layerGroup().addTo(map);
-      mapRef.current = map;
-      setMapReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        layerGroupRef.current = null;
-        leafletRef.current = null;
-        setMapReady(false);
-      }
-    };
+  const handleMarkerClick = useCallback((id: string) => {
+    setActiveMarkerId((prev) => (prev === id ? null : id));
   }, []);
 
-  useEffect(() => {
-    const Lf = leafletRef.current;
-    const map = mapRef.current;
-    const group = layerGroupRef.current;
-    if (!Lf || !map || !group || !mapReady) return;
-    group.clearLayers();
-    if (!trip) return;
+  const handleInfoClose = useCallback(() => {
+    setActiveMarkerId(null);
+  }, []);
 
-    const bounds: L.LatLngTuple[] = [];
-
-    // --- Routes ---
-    for (const route of trip.routes) {
-      if (route.origin_coordinates) {
-        const pos: L.LatLngTuple = [route.origin_coordinates.lat, route.origin_coordinates.lng];
-        Lf.marker(pos, { icon: makeDivIcon(Lf, MARKER_COLORS.route_origin, route.origin) })
-          .bindPopup("<b>" + route.origin + "</b><br/>" + route.origin_address)
-          .addTo(group);
-        bounds.push(pos);
-      }
-      if (route.destination_coordinates) {
-        const pos: L.LatLngTuple = [route.destination_coordinates.lat, route.destination_coordinates.lng];
-        Lf.marker(pos, { icon: makeDivIcon(Lf, MARKER_COLORS.route_destination, route.destination) })
-          .bindPopup("<b>" + route.destination + "</b><br/>" + route.destination_address)
-          .addTo(group);
-        bounds.push(pos);
-      }
-      if (route.polyline) {
-        const decoded = decodePolyline(route.polyline);
-        if (decoded.length > 0) {
-          Lf.polyline(decoded, { color: "#000000", weight: 3, opacity: 0.8, dashArray: "10 5" }).addTo(group);
-        }
-      } else if (route.origin_coordinates && route.destination_coordinates) {
-        Lf.polyline(
-          [
-            [route.origin_coordinates.lat, route.origin_coordinates.lng],
-            [route.destination_coordinates.lat, route.destination_coordinates.lng],
-          ],
-          { color: "#000000", weight: 3, opacity: 0.7, dashArray: "8 6" }
-        ).addTo(group);
-      }
-    }
-
-    // --- Flights ---
-    for (const flight of trip.flights ?? []) {
-      const originCoords = AIRPORT_COORDS[flight.origin];
-      const destCoords = AIRPORT_COORDS[flight.destination];
-
-      const priceStr = flight.price ? " | " + flight.price + " " + flight.currency : "";
-      const stopsStr = flight.stops === 0 ? "Nonstop" : flight.stops + " stop" + (flight.stops > 1 ? "s" : "");
-
-      if (originCoords) {
-        const pos: L.LatLngTuple = originCoords;
-        Lf.marker(pos, { icon: makeDivIcon(Lf, MARKER_COLORS.flight_origin, flight.origin) })
-          .bindPopup("<b>" + flight.origin + "</b><br/>" + flight.airline + " " + (flight.flight_number ?? "") + "<br/>" + stopsStr + priceStr)
-          .addTo(group);
-        bounds.push(pos);
-      }
-
-      if (destCoords) {
-        const pos: L.LatLngTuple = destCoords;
-        Lf.marker(pos, { icon: makeDivIcon(Lf, MARKER_COLORS.flight_destination, flight.destination) })
-          .bindPopup("<b>" + flight.destination + "</b><br/>" + flight.airline + " " + (flight.flight_number ?? "") + "<br/>" + stopsStr + priceStr)
-          .addTo(group);
-        bounds.push(pos);
-      }
-
-      // Draw dashed arc between airports
-      if (originCoords && destCoords) {
-        Lf.polyline([originCoords, destCoords], {
-          color: "#FF385C",
-          weight: 2.5,
-          opacity: 0.7,
-          dashArray: "10 8",
-        }).addTo(group);
-      }
-    }
-
-    // --- Stays ---
-    for (const stay of trip.stays) {
-      if (!stay.coordinates) continue;
-      const pos: L.LatLngTuple = [stay.coordinates.lat, stay.coordinates.lng];
-      const priceStr = stay.total_price ? " | " + stay.total_price + " EUR" : "";
-      Lf.marker(pos, { icon: makeDivIcon(Lf, MARKER_COLORS.stay, stay.name, stay.total_price) })
-        .bindPopup("<b>" + stay.name + "</b><br/>" + stay.address + "<br/>" + stay.nights + " night" + (stay.nights !== 1 ? "s" : "") + priceStr)
-        .addTo(group);
-      bounds.push(pos);
-    }
-
-    // --- Activities ---
-    for (const activity of trip.activities) {
-      if (!activity.coordinates) continue;
-      const pos: L.LatLngTuple = [activity.coordinates.lat, activity.coordinates.lng];
-      const color = MARKER_COLORS[activity.type] ?? MARKER_COLORS.activity;
-      Lf.marker(pos, { icon: makeDivIcon(Lf, color, activity.name) })
-        .bindPopup("<b>" + activity.name + "</b><br/>" + activity.address + (activity.rating ? "<br/>Rating: " + activity.rating : ""))
-        .addTo(group);
-      bounds.push(pos);
-    }
-
-    if (bounds.length > 0) {
-      map.fitBounds(Lf.latLngBounds(bounds), { padding: [50, 50], maxZoom: 15 });
-    }
-  }, [trip, mapReady]);
+  const markers = useMemo(() => (trip ? buildMarkers(trip) : []), [trip]);
+  const polylines = useMemo(() => (trip ? buildPolylines(trip) : []), [trip]);
+  const bounds = useMemo(() => markers.map((m) => m.position), [markers]);
 
   return (
     <div className="relative h-full w-full">
-      <div ref={containerRef} className="h-full w-full bg-gray-100" />
-      {!trip && mapReady && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[400]">
+      <APIProvider apiKey={API_KEY}>
+        <Map
+          mapId={MAP_ID}
+          defaultCenter={DEFAULT_CENTER}
+          defaultZoom={DEFAULT_ZOOM}
+          gestureHandling="greedy"
+          disableDefaultUI={false}
+          zoomControl={true}
+          mapTypeControl={false}
+          streetViewControl={false}
+          fullscreenControl={false}
+          style={{ width: "100%", height: "100%" }}
+        >
+          {markers.map((m) => (
+            <TripMarker
+              key={m.id}
+              markerId={m.id}
+              position={m.position}
+              color={m.color}
+              label={m.label}
+              price={m.price}
+              popupContent={m.popupContent}
+              activeMarkerId={activeMarkerId}
+              onMarkerClick={handleMarkerClick}
+              onInfoClose={handleInfoClose}
+            />
+          ))}
+
+          <Polylines lines={polylines} />
+
+          {bounds.length > 0 && <FitBounds bounds={bounds} />}
+        </Map>
+      </APIProvider>
+
+      {!trip && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1]">
           <div className="bg-white/80 backdrop-blur-md rounded-2xl px-8 py-6 text-center shadow-lg border border-gray-100 max-w-sm">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
