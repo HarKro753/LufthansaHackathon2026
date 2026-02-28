@@ -1,8 +1,8 @@
-"""Add to trip tool — adds a route, stay, or activity to the current trip.
+"""Add to trip tool — adds a route, flight, stay, or activity to the current trip.
 
-Reference-based: pass routeIndex (from get_routes), hostelIndex (from search_hostels),
-or placeIndex (from search_places) for activities.
-All data is resolved automatically from cached results.
+Routes and activities use index-based references (from get_routes / search_places).
+Flights and stays use direct parameter passing — the LLM extracts data from raw
+search results and passes it here.
 """
 
 import json
@@ -12,9 +12,14 @@ from datetime import datetime
 
 from google.adk.tools.tool_context import ToolContext
 
-from typing import Literal
-
-from models.trip import Coordinates, ExternalLink, TripActivity, TripRoute, TripStay
+from models.trip import (
+    Coordinates,
+    ExternalLink,
+    TripActivity,
+    TripFlight,
+    TripRoute,
+    TripStay,
+)
 from services import session_store
 from utils.date_utils import parse_date
 from utils.format_utils import parse_duration_to_minutes
@@ -24,26 +29,75 @@ async def add_to_trip(
     item_type: str,
     selection_reason: str,
     route_index: int = -1,
-    hostel_index: int = -1,
     place_index: int = -1,
+    airline: str = "",
+    flight_origin: str = "",
+    flight_destination: str = "",
+    departure_time: str = "",
+    arrival_time: str = "",
+    flight_duration: str = "",
+    flight_stops: int = 0,
+    flight_price: float = 0.0,
+    flight_currency: str = "EUR",
+    flight_booking_link: str = "",
+    flight_cabin_class: str = "economy",
+    flight_number: str = "",
+    hostel_name: str = "",
+    hostel_address: str = "",
+    hostel_lat: float = 0.0,
+    hostel_lng: float = 0.0,
     check_in_date: str = "",
     check_out_date: str = "",
+    price_per_night: float = 0.0,
+    hostel_currency: str = "EUR",
+    hostel_rating: float = 0.0,
+    hostel_reviews: int = 0,
+    hostel_stars: int = 0,
+    hostel_booking_link: str = "",
+    hostel_booking_source: str = "",
     activity_type: str = "activity",
     scheduled_date: str = "",
     tool_context: ToolContext | None = None,
 ) -> str:
-    """Add a route, stay, or activity to the trip. Reference-based: pass routeIndex (from get_routes) for routes, hostelIndex (from search_hostels) for stays, or placeIndex (from search_places) for activities. For stays the check-in/check-out dates are taken from the search_hostels results automatically. For activities optionally pass activityType and scheduledDate.
+    """Add a route, flight, stay, or activity to the trip.
+
+    For routes: pass route_index from get_routes results.
+    For activities: pass place_index from search_places results.
+    For flights: pass the flight details directly — airline, flight_origin (IATA), flight_destination (IATA), departure_time, arrival_time, flight_price, flight_booking_link, etc.
+    For stays: pass the hostel details directly — hostel_name, hostel_address, check_in_date, check_out_date, price_per_night, hostel_booking_link, etc.
 
     Args:
-        item_type: 'route', 'stay', or 'activity'.
-        selection_reason: Why this option was selected.
+        item_type: 'route', 'flight', 'stay', or 'activity'.
+        selection_reason: Why this option was selected — shown to the user.
         route_index: Route: routeIndex from get_routes results. Use -1 if not applicable.
-        hostel_index: Stay: hostelIndex from search_hostels results. Use -1 if not applicable.
         place_index: Activity: placeIndex from search_places results. Use -1 if not applicable.
-        check_in_date: Stay: Override check-in date/time (ISO 8601). Usually auto-resolved from search_hostels.
-        check_out_date: Stay: Override check-out date/time (ISO 8601). Usually auto-resolved from search_hostels.
+        airline: Flight: airline name, e.g. "Lufthansa", "Ryanair".
+        flight_origin: Flight: origin IATA airport code, e.g. "FRA".
+        flight_destination: Flight: destination IATA airport code, e.g. "CPH".
+        departure_time: Flight/route: departure time in ISO 8601, e.g. "2026-03-15T08:30".
+        arrival_time: Flight/route: arrival time in ISO 8601, e.g. "2026-03-15T10:45".
+        flight_duration: Flight: duration string, e.g. "2h 15m".
+        flight_stops: Flight: number of stops. 0 means nonstop.
+        flight_price: Flight: price in the given currency.
+        flight_currency: Flight: 3-letter currency code. Defaults to EUR.
+        flight_booking_link: Flight: URL to book this flight.
+        flight_cabin_class: Flight: cabin class — economy, premium_economy, business, first.
+        flight_number: Flight: flight number if known, e.g. "LH1234".
+        hostel_name: Stay: name of the hostel or hotel.
+        hostel_address: Stay: address of the hostel.
+        hostel_lat: Stay: latitude coordinate. Use 0.0 if unknown.
+        hostel_lng: Stay: longitude coordinate. Use 0.0 if unknown.
+        check_in_date: Stay: check-in date in YYYY-MM-DD format.
+        check_out_date: Stay: check-out date in YYYY-MM-DD format.
+        price_per_night: Stay: price per night in the given currency.
+        hostel_currency: Stay: 3-letter currency code. Defaults to EUR.
+        hostel_rating: Stay: rating out of 5 or 10. Use 0.0 if unknown.
+        hostel_reviews: Stay: number of reviews. Use 0 if unknown.
+        hostel_stars: Stay: star rating (1-5). Use 0 if unknown.
+        hostel_booking_link: Stay: URL to book this hostel.
+        hostel_booking_source: Stay: booking provider name, e.g. "Booking.com", "Hostelworld".
         activity_type: Activity type: 'restaurant', 'attraction', or 'activity'. Defaults to 'activity'.
-        scheduled_date: Activity: Scheduled date/time (ISO 8601).
+        scheduled_date: Activity: scheduled date/time (ISO 8601).
 
     Returns dict with success status and itemId.
     """
@@ -59,9 +113,40 @@ async def add_to_trip(
 
     if item_type == "route":
         return _add_route(session_id, route_index, selection_reason)
+    if item_type == "flight":
+        return _add_flight_direct(
+            session_id=session_id,
+            airline=airline,
+            flight_number=flight_number,
+            origin=flight_origin,
+            destination=flight_destination,
+            departure=departure_time,
+            arrival=arrival_time,
+            duration=flight_duration,
+            stops=flight_stops,
+            price=flight_price,
+            currency=flight_currency,
+            booking_link=flight_booking_link,
+            cabin_class=flight_cabin_class,
+            reason=selection_reason,
+        )
     if item_type == "stay":
-        return _add_stay_from_hostel(
-            session_id, hostel_index, check_in_date, check_out_date, selection_reason
+        return _add_stay_direct(
+            session_id=session_id,
+            name=hostel_name,
+            address=hostel_address,
+            lat=hostel_lat,
+            lng=hostel_lng,
+            check_in=check_in_date,
+            check_out=check_out_date,
+            price_per_night=price_per_night,
+            currency=hostel_currency,
+            rating=hostel_rating,
+            reviews=hostel_reviews,
+            stars=hostel_stars,
+            booking_link=hostel_booking_link,
+            booking_source=hostel_booking_source,
+            reason=selection_reason,
         )
     if item_type == "activity":
         return _add_activity(
@@ -69,7 +154,9 @@ async def add_to_trip(
         )
 
     return json.dumps(
-        {"error": f"Invalid item_type: {item_type}. Must be route, stay, or activity."}
+        {
+            "error": f"Invalid item_type: {item_type}. Must be route, flight, stay, or activity."
+        }
     )
 
 
@@ -133,75 +220,119 @@ def _add_route(session_id: str, route_index: int, reason: str) -> str:
     return json.dumps({"success": True, "itemType": "route", "itemId": route.id})
 
 
-def _add_stay_from_hostel(
+def _add_flight_direct(
     session_id: str,
-    hostel_index: int,
-    check_in_override: str,
-    check_out_override: str,
+    airline: str,
+    flight_number: str,
+    origin: str,
+    destination: str,
+    departure: str,
+    arrival: str,
+    duration: str,
+    stops: int,
+    price: float,
+    currency: str,
+    booking_link: str,
+    cabin_class: str,
     reason: str,
 ) -> str:
-    if hostel_index < 0:
+    """Add a flight using data passed directly by the LLM."""
+    if not airline:
+        return json.dumps({"error": "airline is required for flights"})
+    if not origin or not destination:
         return json.dumps(
-            {
-                "error": "hostel_index is required. Use the hostelIndex from search_hostels results."
-            }
+            {"error": "flight_origin and flight_destination are required"}
         )
+    if not departure:
+        return json.dumps({"error": "departure_time is required for flights"})
 
-    stored = session_store.get_hostel_result(session_id, hostel_index)
-    if not stored:
-        return json.dumps(
-            {
-                "error": f"No hostel found for hostelIndex {hostel_index}. Call search_hostels first."
-            }
-        )
+    dep_time = parse_date(departure)
+    if not dep_time:
+        return json.dumps({"error": f"Could not parse departure_time: {departure}"})
 
-    # Use override dates if provided, otherwise fall back to stored search dates
-    check_in_dt = parse_date(check_in_override) if check_in_override else None
-    if not check_in_dt and stored.check_in:
-        check_in_dt = parse_date(stored.check_in)
+    # arrival_time is optional — estimate if missing
+    arr_time = parse_date(arrival) if arrival else None
+    if not arr_time:
+        # If no arrival time, just set it same as departure (will show as unknown)
+        arr_time = dep_time
+
+    flight = TripFlight(
+        id=uuid.uuid4().hex,
+        airline=airline,
+        flight_number=flight_number or None,
+        origin=origin.strip().upper(),
+        destination=destination.strip().upper(),
+        departure_time=dep_time,
+        arrival_time=arr_time,
+        duration=duration or None,
+        stops=stops,
+        cabin_class=cabin_class or "economy",
+        price=price if price > 0 else None,
+        currency=currency or "EUR",
+        booking_link=booking_link or None,
+        selection_reason=reason,
+    )
+
+    session_store.add_flight(session_id, flight)
+    return json.dumps({"success": True, "itemType": "flight", "itemId": flight.id})
+
+
+def _add_stay_direct(
+    session_id: str,
+    name: str,
+    address: str,
+    lat: float,
+    lng: float,
+    check_in: str,
+    check_out: str,
+    price_per_night: float,
+    currency: str,
+    rating: float,
+    reviews: int,
+    stars: int,
+    booking_link: str,
+    booking_source: str,
+    reason: str,
+) -> str:
+    """Add a stay using data passed directly by the LLM."""
+    if not name:
+        return json.dumps({"error": "hostel_name is required for stays"})
+    if not check_in:
+        return json.dumps({"error": "check_in_date is required for stays"})
+    if not check_out:
+        return json.dumps({"error": "check_out_date is required for stays"})
+
+    check_in_dt = parse_date(check_in)
+    check_out_dt = parse_date(check_out)
+
     if not check_in_dt:
-        return json.dumps({"error": "check_in_date could not be resolved"})
-
-    check_out_dt = parse_date(check_out_override) if check_out_override else None
-    if not check_out_dt and stored.check_out:
-        check_out_dt = parse_date(stored.check_out)
+        return json.dumps({"error": f"Could not parse check_in_date: {check_in}"})
     if not check_out_dt:
-        return json.dumps({"error": "check_out_date could not be resolved"})
+        return json.dumps({"error": f"Could not parse check_out_date: {check_out}"})
 
     nights = max(
         1, math.ceil((check_out_dt.timestamp() - check_in_dt.timestamp()) / 86400)
     )
 
-    # Pick cheapest price option
-    cheapest_price = stored.cheapest_price
-    booking_source: str | None = None
-    booking_link: str | None = None
-    if stored.prices:
-        best = min(stored.prices, key=lambda p: p.price)
-        cheapest_price = best.price
-        booking_source = best.source
-        booking_link = best.link
-
-    total_price = cheapest_price * nights if cheapest_price else None
+    total_price = price_per_night * nights if price_per_night > 0 else None
+    coordinates = Coordinates(lat=lat, lng=lng) if lat != 0.0 and lng != 0.0 else None
 
     stay = TripStay(
         id=uuid.uuid4().hex,
-        name=stored.name,
-        address=stored.address,
-        coordinates=stored.coordinates,
-        entity_id=stored.entity_id,
+        name=name,
+        address=address or "",
+        coordinates=coordinates,
         check_in_date=check_in_dt,
         check_out_date=check_out_dt,
         nights=nights,
-        price_per_night=cheapest_price,
+        price_per_night=price_per_night if price_per_night > 0 else None,
         total_price=total_price,
-        currency=stored.currency,
-        booking_source=booking_source,
-        booking_link=booking_link,
-        rating=stored.rating,
-        reviews=stored.reviews,
-        stars=stored.stars,
-        amenities=stored.amenities,
+        currency=currency or "EUR",
+        booking_source=booking_source or None,
+        booking_link=booking_link or None,
+        rating=rating if rating > 0 else None,
+        reviews=reviews if reviews > 0 else None,
+        stars=stars if stars > 0 else None,
         selection_reason=reason,
     )
 

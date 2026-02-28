@@ -72,6 +72,25 @@ class TripStay(BaseModel):
     selection_reason: str = ""
 
 
+class TripFlight(BaseModel):
+    id: str = Field(default_factory=lambda: __import__("uuid").uuid4().hex)
+    airline: str
+    flight_number: str | None = None
+    origin: str
+    destination: str
+    departure_time: datetime
+    arrival_time: datetime
+    duration: str | None = None
+    stops: int = 0
+    stop_airports: list[str] | None = None
+    cabin_class: str = "economy"
+    price: float | None = None
+    currency: str = "EUR"
+    booking_link: str | None = None
+    return_flight: dict | None = None
+    selection_reason: str = ""
+
+
 class TripActivity(BaseModel):
     id: str = Field(default_factory=lambda: __import__("uuid").uuid4().hex)
     name: str
@@ -93,6 +112,7 @@ class TripState(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     routes: list[TripRoute] = Field(default_factory=list)
+    flights: list[TripFlight] = Field(default_factory=list)
     stays: list[TripStay] = Field(default_factory=list)
     activities: list[TripActivity] = Field(default_factory=list)
     start_date: datetime | None = None

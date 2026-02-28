@@ -2,11 +2,12 @@
 
 Architecture:
   root_agent (gemini-2.5-flash)
-    └── native tools (no MCP — all tools run in-process)
+    └── native tools (registered via tools/registry.py)
         ├── create_trip      — start a new trip plan
         ├── get_trip         — view current trip state
-        ├── add_to_trip      — add route/stay/activity by reference
+        ├── add_to_trip      — add route/flight/stay/activity by reference
         ├── get_routes       — compute routes via Google Routes API
+        ├── search_flights   — find flights with real prices via Bright Data
         ├── search_hostels   — find hostels with real prices via Bright Data
         ├── search_places    — find restaurants/attractions via Google Places API
         ├── update_trip      — modify existing trip items
@@ -21,16 +22,7 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from services import user_context
-from tools.create_trip import create_trip
-from tools.get_trip import get_trip
-from tools.add_to_trip import add_to_trip
-from tools.get_routes import get_routes
-from tools.search_hostels import search_hostels
-from tools.search_places import search_places
-from tools.update_trip import update_trip
-from tools.remove_from_trip import remove_from_trip
-from tools.edit_context import edit_context
-from tools.read_context import read_context
+from tools.registry import ALL_TOOLS
 
 MODEL = "gemini-2.5-flash"
 
@@ -54,18 +46,7 @@ def _build_system_prompt() -> str:
 root_agent = Agent(
     name="travel_agent",
     model=MODEL,
-    description="AI travel agent — plans complete trips with routes, hostels, and activities.",
+    description="AI travel agent — plans complete trips with flights, routes, hostels, and activities.",
     instruction=_build_system_prompt(),
-    tools=[
-        create_trip,
-        get_trip,
-        add_to_trip,
-        get_routes,
-        search_hostels,
-        search_places,
-        update_trip,
-        remove_from_trip,
-        edit_context,
-        read_context,
-    ],
+    tools=ALL_TOOLS,
 )

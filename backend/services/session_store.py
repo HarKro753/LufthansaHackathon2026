@@ -13,11 +13,12 @@ from pathlib import Path
 from models.session import (
     ChatMessageRecord,
     SessionData,
+    StoredFlightResult,
     StoredHostelResult,
     StoredPlaceResult,
     StoredRouteResult,
 )
-from models.trip import TripActivity, TripRoute, TripState, TripStay
+from models.trip import TripActivity, TripFlight, TripRoute, TripState, TripStay
 
 SESSIONS_DIR = Path(os.getcwd()) / ".travelagent" / "sessions"
 
@@ -45,6 +46,10 @@ def _recalculate_trip_dates(trip: TripState) -> None:
     for route in trip.routes:
         all_dates.append(route.departure_time)
         all_dates.append(route.arrival_time)
+
+    for flight in trip.flights:
+        all_dates.append(flight.departure_time)
+        all_dates.append(flight.arrival_time)
 
     for stay in trip.stays:
         all_dates.append(stay.check_in_date)
@@ -151,6 +156,17 @@ def add_route(session_id: str, route: TripRoute) -> TripRoute:
     return route
 
 
+def add_flight(session_id: str, flight: TripFlight) -> TripFlight:
+    trip = get_trip(session_id)
+    if not trip:
+        raise ValueError("No trip exists. Create a trip first.")
+    trip.flights.append(flight)
+    trip.updated_at = datetime.now()
+    _recalculate_trip_dates(trip)
+    set_trip(session_id, trip)
+    return flight
+
+
 def add_stay(session_id: str, stay: TripStay) -> TripStay:
     trip = get_trip(session_id)
     if not trip:
@@ -178,7 +194,12 @@ def update_item(session_id: str, item_id: str, updates: dict) -> bool:
     if not trip:
         return False
 
-    all_collections: list[list] = [trip.routes, trip.stays, trip.activities]
+    all_collections: list[list] = [
+        trip.routes,
+        trip.flights,
+        trip.stays,
+        trip.activities,
+    ]
 
     for collection in all_collections:
         for item in collection:
@@ -199,7 +220,7 @@ def remove_item(session_id: str, item_id: str) -> bool:
     if not trip:
         return False
 
-    for collection in [trip.routes, trip.stays, trip.activities]:
+    for collection in [trip.routes, trip.flights, trip.stays, trip.activities]:
         for i, item in enumerate(collection):
             if item.id == item_id:
                 collection.pop(i)
@@ -277,6 +298,28 @@ def get_hostel_result(
     for h in session.hostel_results:
         if h.hostel_index == hostel_index:
             return h
+    return None
+
+
+def store_flight_results(
+    session_id: str,
+    results: list[StoredFlightResult],
+) -> None:
+    session = get_or_create_session(session_id)
+    session.flight_results = results
+    _save_session(session)
+
+
+def get_flight_result(
+    session_id: str,
+    flight_index: int,
+) -> StoredFlightResult | None:
+    session = get_session(session_id)
+    if not session or not session.flight_results:
+        return None
+    for f in session.flight_results:
+        if f.flight_index == flight_index:
+            return f
     return None
 
 

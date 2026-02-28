@@ -57,6 +57,8 @@ const md: Components = {
 // ─── Tool names ───────────────────────────────────────────────────────────────
 
 const toolDisplayNames: Record<string, string> = {
+  search_flights: "Search Flights",
+  search_hostels: "Search Hostels",
   search_places: "Google Places",
   google_search: "Google Search",
   get_routes: "Google Routes",
@@ -65,6 +67,8 @@ const toolDisplayNames: Record<string, string> = {
   update_trip: "Update Trip",
   remove_from_trip: "Remove from Trip",
   get_trip: "View Trip",
+  edit_context: "Save Preferences",
+  read_context: "Read Preferences",
 };
 
 // ─── Thinking block ───────────────────────────────────────────────────────────

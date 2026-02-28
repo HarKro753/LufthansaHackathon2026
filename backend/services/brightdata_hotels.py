@@ -42,17 +42,12 @@ async def search_hostels_by_location(
             "error": "BRIGHTDATA_API_TOKEN and BRIGHTDATA_ZONE_NAME must be set in .env"
         }
 
-    params = (
-        f"brd_dates={check_in},{check_out}"
-        f"&brd_occupancy={adults}"
-        f"&brd_currency={currency}"
-        f"&brd_json=1"
-        f"&hl={language}"
-        f"&gl={country}"
+    # IMPORTANT: google.com/travel/search does NOT support brd_json=1.
+    # Use google.com/search instead — the SERP API can parse this into JSON.
+    query = f"hostels+in+{location.replace(' ', '+')}+{check_in}+to+{check_out}"
+    search_url = (
+        f"https://www.google.com/search?q={query}&hl={language}&gl={country}&brd_json=1"
     )
-
-    query = f"hostels+in+{location.replace(' ', '+')}"
-    search_url = f"https://www.google.com/travel/search?q={query}&{params}"
 
     try:
         async with httpx.AsyncClient(timeout=45.0) as client:

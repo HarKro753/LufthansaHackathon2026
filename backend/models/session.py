@@ -72,6 +72,26 @@ class StoredHostelResult(BaseModel):
     check_out: str | None = None
 
 
+class StoredFlightResult(BaseModel):
+    """Full flight data stored server-side for reference by add_to_trip."""
+
+    flight_index: int
+    airline: str
+    flight_number: str | None = None
+    origin: str
+    destination: str
+    departure: str
+    arrival: str
+    duration: str | None = None
+    stops: int = 0
+    stop_airports: list[str] | None = None
+    price: float | None = None
+    currency: str = "EUR"
+    cabin_class: str = "economy"
+    booking_link: str | None = None
+    return_flight: dict | None = None
+
+
 class ChatMessageRecord(BaseModel):
     """A single persisted chat message (user or assistant text only)."""
 
@@ -90,4 +110,5 @@ class SessionData(BaseModel):
     route_results: list[StoredRouteResult] | None = None
     place_results: list[StoredPlaceResult] | None = None
     hostel_results: list[StoredHostelResult] | None = None
+    flight_results: list[StoredFlightResult] | None = None
     chat_history: list[ChatMessageRecord] = Field(default_factory=list)

@@ -41,18 +41,44 @@ export interface TripRoute {
   selection_reason: string;
 }
 
+export interface TripFlight {
+  id: string;
+  airline: string;
+  flight_number: string | null;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  arrival_time: string;
+  duration: string | null;
+  stops: number;
+  stop_airports: string[] | null;
+  cabin_class: string;
+  price: number | null;
+  currency: string;
+  booking_link: string | null;
+  return_flight: Record<string, unknown> | null;
+  selection_reason: string;
+}
+
 export interface TripStay {
   id: string;
   name: string;
   address: string;
   coordinates: Coordinates | null;
   place_id: string | null;
+  entity_id: string | null;
   check_in_date: string;
   check_out_date: string;
   nights: number;
   price_per_night: number | null;
   total_price: number | null;
+  currency: string;
+  booking_source: string | null;
+  booking_link: string | null;
   rating: number | null;
+  reviews: number | null;
+  stars: number | null;
+  amenities: string[] | null;
   website: string | null;
   selection_reason: string;
 }
@@ -78,6 +104,7 @@ export interface TripState {
   created_at: string;
   updated_at: string;
   routes: TripRoute[];
+  flights: TripFlight[];
   stays: TripStay[];
   activities: TripActivity[];
   start_date: string | null;
