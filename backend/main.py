@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.types import Content, Part
+from google.genai.types import Content, Part
 
 from agent import root_agent
 from config import settings
