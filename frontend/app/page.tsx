@@ -36,11 +36,16 @@ export default function Page() {
   };
 
   return (
-    <div className="flex flex-col h-screen" style={{ background: "#212121", color: "#ececec" }}>
+    <div
+      className="flex flex-col h-screen"
+      style={{ background: "#212121", color: "#ececec" }}
+    >
       {/* Header — only show when there are messages */}
       {messages.length > 0 && (
         <header className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <span className="text-sm font-medium text-white/60">LH Travel Agent</span>
+          <span className="text-sm font-medium text-white/60">
+            LH Travel Agent
+          </span>
           <button
             onClick={clearMessages}
             className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1 rounded"
@@ -61,8 +66,12 @@ export default function Page() {
             >
               LH
             </div>
-            <h1 className="text-2xl font-semibold text-white/90">What can I help with?</h1>
-            <p className="text-sm text-white/40">Powered by Lufthansa × Google ADK</p>
+            <h1 className="text-2xl font-semibold text-white/90">
+              What can I help with?
+            </h1>
+            <p className="text-sm text-white/40">
+              Powered by Lufthansa × Google ADK
+            </p>
           </div>
         ) : (
           <div className="max-w-2xl mx-auto w-full px-4 py-6 flex flex-col gap-6">
@@ -195,8 +204,16 @@ export default function Page() {
 
       <style jsx global>{`
         @keyframes pulse {
-          0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-          40% { opacity: 1; transform: scale(1); }
+          0%,
+          80%,
+          100% {
+            opacity: 0.3;
+            transform: scale(0.8);
+          }
+          40% {
+            opacity: 1;
+            transform: scale(1);
+          }
         }
       `}</style>
     </div>

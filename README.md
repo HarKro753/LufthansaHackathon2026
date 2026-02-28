@@ -4,12 +4,12 @@ AI travel agent built at the **Lufthansa x Google Hackathon 2026**.
 
 ## Stack
 
-| Layer | Tech |
-|---|---|
+| Layer           | Tech                                                      |
+| --------------- | --------------------------------------------------------- |
 | Agent framework | [Google ADK](https://google.github.io/adk-docs/) (Python) |
-| LLM | Gemini 2.5 Flash |
-| Backend | FastAPI + uvicorn |
-| Frontend | Next.js 15 + Bun + Tailwind |
+| LLM             | Gemini 2.5 Flash                                          |
+| Backend         | FastAPI + uvicorn                                         |
+| Frontend        | Next.js 15 + Bun + Tailwind                               |
 
 ## Setup
 
