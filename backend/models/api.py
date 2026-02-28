@@ -1,5 +1,8 @@
-from pydantic import BaseModel
+"""API request/response models."""
+
 from typing import Literal
+
+from pydantic import BaseModel
 
 
 class Message(BaseModel):

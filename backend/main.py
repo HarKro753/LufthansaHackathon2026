@@ -53,9 +53,11 @@ async def _get_or_create_session(
     cookie_id = cookie_id or str(uuid.uuid4())
     user_id = f"user_{cookie_id[:8]}"
 
+    # Pass session_id into ADK state so tools can access it for persistence
     session = await session_service.create_session(
         app_name=APP_NAME,
         user_id=user_id,
+        state={"session_id": cookie_id},
     )
 
     _session_map[cookie_id] = (user_id, session.id)
@@ -81,7 +83,6 @@ async def _stream_agent_response(
 ) -> AsyncGenerator[str, None]:
     """Stream ADK runner events as SSE."""
     message = Content(parts=[Part(text=user_text)])
-    # Track tool call id by name for matching function_response back to function_call
     tool_call_ids: dict[str, str] = {}
 
     try:
@@ -94,7 +95,7 @@ async def _stream_agent_response(
                 continue
 
             for part in event.content.parts:
-                # ── Tool call start ──────────────────────────────────────────
+                # -- Tool call start --
                 if part.function_call:
                     call = part.function_call
                     tool_id = call.id or f"{call.name}-{uuid.uuid4().hex[:8]}"
@@ -111,11 +112,10 @@ async def _stream_agent_response(
                         }
                     )
 
-                # ── Tool call result ─────────────────────────────────────────
+                # -- Tool call result --
                 elif part.function_response:
                     resp = part.function_response
                     resp_name = resp.name or ""
-                    # Match by id first, fall back to name lookup
                     tool_id = resp.id or tool_call_ids.get(resp_name) or resp_name
                     result_data = resp.response
                     result_str = (
@@ -131,7 +131,7 @@ async def _stream_agent_response(
                         }
                     )
 
-                # ── Thought / thinking ───────────────────────────────────────
+                # -- Thought / thinking --
                 elif part.thought and part.text:
                     yield _sse_event(
                         {
@@ -140,7 +140,7 @@ async def _stream_agent_response(
                         }
                     )
 
-                # ── Text content ─────────────────────────────────────────────
+                # -- Text content --
                 elif part.text:
                     yield _sse_event(
                         {
@@ -162,7 +162,6 @@ async def chat(
     """Accept a chat request and return SSE stream of agent responses."""
     user_id, session_id = await _get_or_create_session(request, response)
 
-    # Use the last user message as the new message to the agent
     last_user_msg = ""
     for msg in reversed(chat_request.messages):
         if msg.role == "user":
@@ -180,7 +179,6 @@ async def chat(
             media_type="text/event-stream",
         )
 
-    # Build streaming response — set cookie on it
     streaming_response = StreamingResponse(
         _stream_agent_response(user_id, session_id, last_user_msg),
         media_type="text/event-stream",
@@ -191,10 +189,8 @@ async def chat(
         },
     )
 
-    # Ensure session cookie is set
     cookie_id = request.cookies.get("lh_session")
     if not cookie_id:
-        # Find the cookie_id we just created
         for cid, (uid, sid) in _session_map.items():
             if uid == user_id and sid == session_id:
                 cookie_id = cid
@@ -222,7 +218,6 @@ async def get_session(request: Request, response: Response) -> dict:
         _, session_id = _session_map[cookie_id]
         return {"sessionId": session_id, "messages": []}
 
-    # Create a new session
     user_id, session_id = await _get_or_create_session(request, response)
     return {"sessionId": session_id, "messages": []}
 
@@ -237,6 +232,22 @@ async def clear_session(request: Request, response: Response) -> dict:
 
     response.delete_cookie("lh_session")
     return {"success": True}
+
+
+@app.get("/api/trip")
+async def get_trip_endpoint(request: Request, response: Response) -> dict:
+    """Return the current trip state for the session."""
+    cookie_id = request.cookies.get("lh_session")
+
+    if not cookie_id:
+        return {"trip": None}
+
+    from services import session_store
+
+    trip = session_store.get_trip(cookie_id)
+    if not trip:
+        return {"trip": None}
+    return {"trip": json.loads(trip.model_dump_json())}
 
 
 @app.get("/health")

@@ -1,47 +1,68 @@
-"""Single ADK agent with tools served via MCP server.
+"""ADK travel agent with trip planning, routing, and state persistence.
 
 Architecture:
   root_agent (gemini-2.5-flash)
-    └── tools via MCP stdio server (tools/mcp_server.py)
-        ├── search_places  (Google Places)
-        └── ... (add more in tools/registry.py)
+    └── native tools (no MCP — all tools run in-process)
+        ├── create_trip     — start a new trip plan
+        ├── get_trip        — view current trip state
+        ├── add_to_trip     — add route/stay/activity by reference
+        ├── get_routes      — compute routes via Google Routes API
+        ├── search_places   — find places via Google Places API
+        ├── update_trip     — modify existing trip items
+        ├── remove_from_trip — remove items from trip
+        ├── edit_context    — save traveler preferences
+        └── read_context    — read traveler profile/memory
 """
 
-import os
-import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 from google.adk.agents import Agent
-from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
-from mcp.client.stdio import StdioServerParameters
+
+from services import user_context
+from tools.create_trip import create_trip
+from tools.get_trip import get_trip
+from tools.add_to_trip import add_to_trip
+from tools.get_routes import get_routes
+from tools.search_places import search_places
+from tools.update_trip import update_trip
+from tools.remove_from_trip import remove_from_trip
+from tools.edit_context import edit_context
+from tools.read_context import read_context
 
 MODEL = "gemini-2.5-flash"
 
-_backend_dir = os.path.dirname(os.path.abspath(__file__))
-_python = sys.executable
+PROMPT_TEMPLATE = (Path(__file__).parent / "templates" / "prompt.txt").read_text()
 
-toolset = McpToolset(
-    connection_params=StdioConnectionParams(
-        server_params=StdioServerParameters(
-            command=_python,
-            args=["-m", "tools.mcp_server"],
-            cwd=_backend_dir,
-        ),
-    ),
-)
+
+def _build_system_prompt() -> str:
+    """Build the system prompt with current time and user context injected."""
+    now = datetime.now(timezone.utc)
+    context = user_context.get_all_context()
+
+    return PROMPT_TEMPLATE.format(
+        current_date=now.strftime("%A, %B %d, %Y"),
+        current_time=now.strftime("%H:%M"),
+        timezone="UTC",
+        traveler_context=context["traveler"],
+        trip_memory=context["trip_memory"],
+    )
+
 
 root_agent = Agent(
     name="travel_agent",
     model=MODEL,
-    description="AI travel agent for the Lufthansa Hackathon 2026.",
-    instruction="""You are a smart travel assistant powered by Lufthansa and Google.
-
-You have tools available via MCP:
-- search_places: find hotels, restaurants, attractions, airports, or any place. Use when the user asks about places to stay, eat, visit, or travel to.
-
-Guidelines:
-- For places, include ratings, price level, address, and website when available.
-- Be concise and actionable — users want to make decisions, not read essays.
-- If asked about flights, use your knowledge of Lufthansa and Star Alliance routes.
-- If asked about multiple things (e.g. flights + hotels), address each clearly.""",
-    tools=[toolset],
+    description="AI travel agent — plans complete trips with routes, hotels, and activities.",
+    instruction=_build_system_prompt(),
+    tools=[
+        create_trip,
+        get_trip,
+        add_to_trip,
+        get_routes,
+        search_places,
+        update_trip,
+        remove_from_trip,
+        edit_context,
+        read_context,
+    ],
 )

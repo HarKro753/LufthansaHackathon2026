@@ -1,16 +1,27 @@
-"""Google Places API tool — search for hotels, restaurants, attractions."""
+"""Google Places API tool — search for hotels, restaurants, attractions.
+
+Results are cached in the session store for reference by add_to_trip (via placeIndex).
+"""
 
 import json
 import os
 
 import httpx
+from google.adk.tools.tool_context import ToolContext
+
+from models.session import StoredPlaceResult
+from models.trip import Coordinates
+from services import session_store
+from utils.date_utils import parse_date, format_date_for_display
 
 PLACES_BASE = "https://places.googleapis.com/v1/places:searchText"
 
 FIELD_MASK = ",".join(
     [
+        "places.id",
         "places.displayName",
         "places.formattedAddress",
+        "places.location",
         "places.rating",
         "places.userRatingCount",
         "places.priceLevel",
@@ -18,7 +29,7 @@ FIELD_MASK = ",".join(
         "places.websiteUri",
         "places.googleMapsUri",
         "places.primaryTypeDisplayName",
-        "places.regularOpeningHours",
+        "places.currentOpeningHours",
         "places.editorialSummary",
     ]
 )
@@ -34,50 +45,67 @@ PRICE_MAP = {
 
 async def search_places(
     text_query: str,
-    location_bias_lat: float | None = None,
-    location_bias_lng: float | None = None,
-    location_bias_radius: float = 5000.0,
-    included_type: str | None = None,
-    max_result_count: int = 5,
+    max_price_per_night: float = 0.0,
+    check_in_date: str = "",
+    check_out_date: str = "",
+    nights: int = 0,
+    limit: int = 10,
+    tool_context: ToolContext | None = None,
 ) -> str:
-    """Search for places like hotels, restaurants, airports, or attractions using Google Places.
-
-    Use this when the user asks about places to stay, eat, visit, or travel to.
-    Returns real place info including name, address, rating, website, and opening hours.
+    """Search for places, restaurants, hotels, attractions, or any location using a text query. Each result has a placeIndex — use it with add_to_trip to add the selected place as a stay or activity. For hotel searches, you can specify check-in date, check-out date or number of nights, and maximum price per night.
 
     Args:
-        text_query: Natural language search query, e.g. "hotels near Copenhagen airport"
-            or "best restaurants in Hamburg city center".
-        location_bias_lat: Optional latitude to bias results toward a location.
-        location_bias_lng: Optional longitude to bias results toward a location.
-        location_bias_radius: Search radius in meters (default 5000).
-        included_type: Optional place type filter, e.g. "hotel", "restaurant",
-            "airport", "tourist_attraction", "museum".
-        max_result_count: Max number of results to return (1-20, default 5).
+        text_query: Natural language search query, e.g. 'hotels near Copenhagen airport', 'restaurants in Hamburg', 'attractions Berlin'. Include location context.
+        max_price_per_night: Maximum price per night in EUR for hotel/accommodation searches. Use 0 to skip.
+        check_in_date: Check-in date for hotel stays (ISO 8601, 'today', 'tomorrow', or 'March 15').
+        check_out_date: Check-out date for hotel stays. Either specify this OR the 'nights' parameter.
+        nights: Number of nights for hotel stay. If check_in_date is provided, check_out_date will be calculated.
+        limit: Maximum number of results to return. Defaults to 10.
+
+    Returns places with placeIndex for use with add_to_trip.
     """
     api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
     if not api_key:
         return json.dumps({"error": "GOOGLE_MAPS_API_KEY not configured"})
 
+    if not text_query:
+        return json.dumps({"error": "text_query parameter is required"})
+
+    session_id = _get_session_id(tool_context)
+
+    # Parse date params
+    check_in_dt = parse_date(check_in_date) if check_in_date else None
+    check_out_dt = parse_date(check_out_date) if check_out_date else None
+
+    if check_in_dt and nights > 0 and not check_out_dt:
+        from datetime import timedelta
+
+        check_out_dt = check_in_dt + timedelta(days=nights)
+
+    if check_in_dt and check_out_dt and nights <= 0:
+        import math
+
+        nights = max(
+            1, math.ceil((check_out_dt.timestamp() - check_in_dt.timestamp()) / 86400)
+        )
+
+    # Enhance query with price context
+    enhanced_query = text_query
+    if max_price_per_night > 0:
+        if max_price_per_night <= 50:
+            enhanced_query = f"budget {text_query}"
+        elif max_price_per_night <= 100:
+            enhanced_query = f"affordable {text_query}"
+        elif max_price_per_night <= 200:
+            enhanced_query = f"mid-range {text_query}"
+        else:
+            enhanced_query = f"upscale {text_query}"
+
     payload: dict = {
-        "textQuery": text_query,
-        "maxResultCount": min(max(1, max_result_count), 20),
+        "textQuery": enhanced_query,
+        "maxResultCount": min(max(1, limit), 20),
         "languageCode": "en",
     }
-
-    if location_bias_lat is not None and location_bias_lng is not None:
-        payload["locationBias"] = {
-            "circle": {
-                "center": {
-                    "latitude": location_bias_lat,
-                    "longitude": location_bias_lng,
-                },
-                "radius": location_bias_radius,
-            }
-        }
-
-    if included_type:
-        payload["includedType"] = included_type
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -104,28 +132,69 @@ async def search_places(
     places = data.get("places", [])
     if not places:
         return json.dumps(
-            {"results": [], "message": f"No places found for: {text_query}"}
+            {"places": [], "message": f"No places found for: {text_query}"}
         )
 
     results = []
-    for p in places:
-        item: dict = {
+    for index, p in enumerate(places[:limit]):
+        location = p.get("location", {})
+        coords = None
+        if location.get("latitude") is not None:
+            coords = {"lat": location["latitude"], "lng": location["longitude"]}
+
+        result = {
+            "placeIndex": index,
             "name": p.get("displayName", {}).get("text", "Unknown"),
             "address": p.get("formattedAddress", ""),
-            "type": p.get("primaryTypeDisplayName", {}).get("text", ""),
+            "placeId": p.get("id", ""),
+            "coordinates": coords,
             "rating": p.get("rating"),
-            "total_ratings": p.get("userRatingCount"),
-            "price_level": PRICE_MAP.get(p.get("priceLevel", ""), None),
-            "phone": p.get("internationalPhoneNumber"),
+            "totalRatings": p.get("userRatingCount"),
+            "priceLevel": PRICE_MAP.get(p.get("priceLevel", ""), None),
+            "openNow": p.get("currentOpeningHours", {}).get("openNow"),
             "website": p.get("websiteUri"),
-            "maps_url": p.get("googleMapsUri"),
+            "mapsUrl": p.get("googleMapsUri"),
+            "type": p.get("primaryTypeDisplayName", {}).get("text", ""),
             "summary": p.get("editorialSummary", {}).get("text"),
         }
+        results.append({k: v for k, v in result.items() if v is not None})
 
-        hours = p.get("regularOpeningHours", {})
-        if hours.get("weekdayDescriptions"):
-            item["opening_hours"] = hours["weekdayDescriptions"]
+    # Store in session for add_to_trip resolution
+    stored = [
+        StoredPlaceResult(
+            place_index=r["placeIndex"],
+            name=r.get("name", ""),
+            address=r.get("address", ""),
+            place_id=r.get("placeId", ""),
+            coordinates=Coordinates(**r["coordinates"])
+            if r.get("coordinates")
+            else None,
+            rating=r.get("rating"),
+            price_level=r.get("priceLevel"),
+            open_now=r.get("openNow"),
+            website=r.get("website"),
+        )
+        for r in results
+    ]
+    session_store.store_place_results(session_id, stored)
 
-        results.append({k: v for k, v in item.items() if v is not None})
+    response: dict = {"places": results}
+    stay_details: dict = {}
+    if check_in_dt:
+        stay_details["checkInDate"] = format_date_for_display(check_in_dt)
+    if check_out_dt:
+        stay_details["checkOutDate"] = format_date_for_display(check_out_dt)
+    if nights > 0:
+        stay_details["nights"] = nights
+    if max_price_per_night > 0:
+        stay_details["maxPricePerNight"] = max_price_per_night
+    if stay_details:
+        response["stayDetails"] = stay_details
 
-    return json.dumps({"query": text_query, "count": len(results), "results": results})
+    return json.dumps(response)
+
+
+def _get_session_id(tool_context: ToolContext | None) -> str:
+    if tool_context and tool_context.state.get("session_id"):
+        return str(tool_context.state["session_id"])
+    return "default"
