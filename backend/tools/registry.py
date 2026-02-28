@@ -18,6 +18,7 @@ from tools.update_trip import update_trip
 from tools.remove_from_trip import remove_from_trip
 from tools.edit_context import edit_context
 from tools.read_context import read_context
+from tools.offer_suggestions import offer_suggestions
 
 ALL_TOOLS = [
     create_trip,
@@ -31,4 +32,5 @@ ALL_TOOLS = [
     remove_from_trip,
     edit_context,
     read_context,
+    offer_suggestions,
 ]

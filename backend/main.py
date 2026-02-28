@@ -225,11 +225,30 @@ async def _stream_agent_response(
                         if item_type:
                             sse_payload["itemType"] = item_type
 
+                    # For offer_suggestions, emit a custom `suggestions` event
+                    # and skip the standard tool_call_complete event.
+                    if resolved_name == "offer_suggestions" and isinstance(
+                        unwrapped, dict
+                    ):
+                        if suggestions := unwrapped.get("suggestions"):
+                            yield _sse_event(
+                                {
+                                    "type": "suggestions",
+                                    "suggestions": suggestions,
+                                }
+                            )
+                        continue  # Skip the tool_call_complete for this tool
+
                     yield _sse_event(sse_payload)
 
-                # -- Thought / thinking — skip, not streamed to client --
+                # -- Thought / thinking --
                 elif part.thought and part.text:
-                    pass
+                    yield _sse_event(
+                        {
+                            "type": "thinking",
+                            "content": part.text,
+                        }
+                    )
 
                 # -- Text content --
                 elif part.text:

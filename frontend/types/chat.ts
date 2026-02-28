@@ -8,7 +8,8 @@ export interface StreamEvent {
     | "tool_call_complete"
     | "tool_call_error"
     | "tool_call_args"
-    | "thinking";
+    | "thinking"
+    | "suggestions";
   status?: string;
   content?: string;
   error?: string;
@@ -20,6 +21,12 @@ export interface StreamEvent {
   itemId?: string;
   /** Trip item type — present on tool_call_complete for trip-mutating tools */
   itemType?: string;
+  suggestions?: Suggestion[];
+}
+
+export interface Suggestion {
+  short_text: string;
+  prompt_text: string;
 }
 
 export interface ToolCall {
