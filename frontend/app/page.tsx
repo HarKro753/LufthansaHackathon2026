@@ -19,6 +19,7 @@ import MovementStep from "@/components/onboarding/MovementStep";
 import WorldStep from "@/components/onboarding/WorldStep";
 import StyleStep from "@/components/onboarding/StyleStep";
 import SuggestionsStep from "@/components/onboarding/SuggestionsStep";
+import SuggestionChips from "@/components/SuggestionChips";
 
 // ─── Markdown components ──────────────────────────────────────────────────────
 
@@ -672,11 +673,19 @@ export default function Page() {
 
   // ─── Chat state ───────────────────────────────────────────────────────────
   const { trip, refetch: refetchTrip } = useTrip();
-  const { messages, isLoading, error, sendMessage, clearMessages, clearError } =
-    useChat({
-      onTripMutated: refetchTrip,
-    });
-  const [input, setInput] = useState("");
+  const {
+    messages,
+    isLoading,
+    error,
+    sendMessage,
+    clearMessages,
+    clearError,
+    activeSuggestions,
+    inputContent,
+    setInputContent,
+  } = useChat({
+    onTripMutated: refetchTrip,
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -789,9 +798,9 @@ export default function Page() {
   };
 
   const handleSend = async (text?: string) => {
-    const msg = (text ?? input).trim();
+    const msg = (text ?? inputContent).trim();
     if (!msg || isLoading) return;
-    setInput("");
+    setInputContent("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     await sendMessage(msg);
   };
@@ -803,12 +812,10 @@ export default function Page() {
     }
   };
 
-  const suggestions = [
-    "Spain and Italy",
-    "France and Germany",
-    "Central Europe",
-    "Beach Ibiza",
-  ];
+  const handleSuggestionClick = (prompt: string) => {
+    setInputContent(prompt);
+    textareaRef.current?.focus();
+  };
 
   // ══════════════════════════════════════════════════════════════════════════════
   // ONBOARDING FLOW — shown before the chat
@@ -1073,6 +1080,7 @@ export default function Page() {
         {/* Animated Background */}
         <InteractiveBackground />
 
+
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">
@@ -1285,27 +1293,17 @@ export default function Page() {
 
         {/* Input area */}
         <div className="px-5 pb-6 pt-2 shrink-0 bg-white">
-          {/* Suggestion pills — only on empty state */}
-          {messages.length === 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar">
-              {suggestions.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => handleSend(s)}
-                  className="flex-shrink-0 px-4 py-2 rounded-full border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-black transition-colors"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
+          <SuggestionChips
+            suggestions={activeSuggestions}
+            onSuggestionClick={handleSuggestionClick}
+          />
 
           {/* Input bar */}
           <div className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm focus-within:shadow-md focus-within:border-[#FF8FA3] transition-all p-3">
             <textarea
               ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={inputContent}
+              onChange={(e) => setInputContent(e.target.value)}
               onKeyDown={handleKeyDown}
               onInput={() => {
                 const el = textareaRef.current;
@@ -1356,9 +1354,9 @@ export default function Page() {
               </div>
               <button
                 onClick={() => handleSend()}
-                disabled={!input.trim() || isLoading}
+                disabled={!inputContent.trim() || isLoading}
                 className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
-                  input.trim() && !isLoading
+                  inputContent.trim() && !isLoading
                     ? "bg-black text-white hover:bg-gray-800"
                     : "bg-gray-100 text-gray-400"
                 }`}
@@ -1381,6 +1379,7 @@ export default function Page() {
           </div>
         </div>
       </div>
+
 
       {/* ─── Right: Map/Destinations Panel ─── */}
       <div className="flex-1 relative bg-gray-100">

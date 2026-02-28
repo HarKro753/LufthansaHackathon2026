@@ -1,14 +1,15 @@
 # ---------- deps stage ----------
-FROM oven/bun:1 AS deps
-
+FROM node:20-slim AS deps
 WORKDIR /app
 
-COPY package.json bun.lock* ./
-RUN bun install --frozen-lockfile
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies using npm
+RUN npm ci
 
 # ---------- build stage ----------
-FROM oven/bun:1 AS builder
-
+FROM node:20-slim AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -18,20 +19,19 @@ COPY . .
 ARG BACKEND_URL=http://localhost:8000
 ENV BACKEND_URL=${BACKEND_URL}
 
-RUN bun run build
+RUN npm run build
 
 # ---------- runtime stage ----------
-FROM oven/bun:1-slim
-
+FROM node:20-slim AS runner
 WORKDIR /app
-
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
 
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# Copy necessary files for standalone mode
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
 EXPOSE 3000
 
-CMD ["bun", "server.js"]
+CMD ["node", "server.js"]

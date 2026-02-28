@@ -7,6 +7,7 @@ import type {
   ContentBlock,
   StreamEvent,
   TimelineItem,
+  Suggestion,
 } from "@/types/chat";
 import type { TripState } from "@/types/trip";
 
@@ -22,16 +23,20 @@ const TRIP_TOOLS = new Set([
 ]);
 
 interface UseChatOptions {
-  onTripMutated?: () => void;
+  onTripMutated?: (trip: TripState | null) => void;
 }
 
 interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
+  thinkingMessage: string | null;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
   clearError: () => void;
+  activeSuggestions: Suggestion[];
+  inputContent: string;
+  setInputContent: (content: string) => void;
 }
 
 function genId(): string {
@@ -78,7 +83,10 @@ function findTripItem(
 export function useChat(options?: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [thinkingMessage, setThinkingMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeSuggestions, setActiveSuggestions] = useState<Suggestion[]>([]);
+  const [inputContent, setInputContent] = useState<string>("");
   const abortRef = useRef<AbortController | null>(null);
   const onTripMutatedRef = useRef(options?.onTripMutated);
   const initializedRef = useRef(false);
@@ -183,6 +191,8 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     async (content: string): Promise<void> => {
       if (!content.trim() || isLoading) return;
 
+      setActiveSuggestions([]);
+      setInputContent("");
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
@@ -199,6 +209,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
+      setThinkingMessage(null);
       setError(null);
 
       try {
@@ -371,41 +382,49 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                 // event (sent as top-level fields by the backend), fetch
                 // trip state, and inject a timeline card immediately.
                 if (isTripTool) {
-                  onTripMutatedRef.current?.();
-
                   const itemId = event.itemId ?? null;
                   const itemType = event.itemType ?? null;
+
                   if (itemId) {
                     fetchTripState().then((trip) => {
-                      if (!trip) return;
+                      if (!trip) {
+                        onTripMutatedRef.current?.(null);
+                        return;
+                      }
+
                       const timelineItem = findTripItem(trip, itemId, itemType);
-                      if (!timelineItem) return;
+                      if (timelineItem) {
+                        setMessages((prev) =>
+                          prev.map((msg) => {
+                            if (msg.id !== assistantId) return msg;
+                            const alreadyAdded = msg.activities?.some(
+                              (a) =>
+                                a.type === "timeline" &&
+                                "data" in a.data &&
+                                a.data.data?.id === itemId,
+                            );
+                            if (alreadyAdded) return msg;
 
-                      setMessages((prev) =>
-                        prev.map((msg) => {
-                          if (msg.id !== assistantId) return msg;
-                          // Avoid duplicate timeline cards for the same item
-                          const alreadyAdded = msg.activities?.some(
-                            (a) =>
-                              a.type === "timeline" &&
-                              "data" in a.data &&
-                              a.data.data?.id === itemId,
-                          );
-                          if (alreadyAdded) return msg;
-
-                          return {
-                            ...msg,
-                            activities: [
-                              ...(msg.activities ?? []),
-                              {
-                                type: "timeline" as const,
-                                data: timelineItem,
-                              },
-                            ],
-                          };
-                        }),
-                      );
+                            return {
+                              ...msg,
+                              activities: [
+                                ...(msg.activities ?? []),
+                                {
+                                  type: "timeline" as const,
+                                  data: timelineItem,
+                                },
+                              ],
+                            };
+                          }),
+                        );
+                      }
+                      
+                      onTripMutatedRef.current?.(trip);
                     });
+                  } else {
+                     fetchTripState().then((trip) => {
+                        onTripMutatedRef.current?.(trip);
+                     });
                   }
                 }
               } else if (event.type === "tool_call_error" && event.toolCallId) {
@@ -429,6 +448,10 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                     };
                   }),
                 );
+              } else if (event.type === "thinking" && event.content) {
+                setThinkingMessage(event.content);
+              } else if (event.type === "suggestions" && event.suggestions) {
+                setActiveSuggestions(event.suggestions);
               } else if (event.type === "error") {
                 throw new Error(event.error ?? "Unknown error");
               }
@@ -444,6 +467,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       } finally {
         setIsLoading(false);
+        setThinkingMessage(null);
         abortRef.current = null;
       }
     },
@@ -460,9 +484,22 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     } catch {}
     setMessages([]);
     setError(null);
+    setActiveSuggestions([]);
+    setInputContent("");
   }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { messages, isLoading, error, sendMessage, clearMessages, clearError };
+  return {
+    messages,
+    isLoading,
+    thinkingMessage,
+    error,
+    sendMessage,
+    clearMessages,
+    clearError,
+    activeSuggestions,
+    inputContent,
+    setInputContent,
+  };
 }
