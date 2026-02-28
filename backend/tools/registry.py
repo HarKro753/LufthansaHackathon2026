@@ -12,7 +12,8 @@ from tools.add_to_trip import add_to_trip
 from tools.get_routes import get_routes
 from tools.search_flights import search_flights
 from tools.search_hostels import search_hostels
-from tools.search_places import search_places
+
+# from tools.search_places import search_places
 from tools.update_trip import update_trip
 from tools.remove_from_trip import remove_from_trip
 from tools.edit_context import edit_context
@@ -25,7 +26,7 @@ ALL_TOOLS = [
     get_routes,
     search_flights,
     search_hostels,
-    search_places,
+    # search_places,
     update_trip,
     remove_from_trip,
     edit_context,

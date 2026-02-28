@@ -169,13 +169,29 @@ async def _stream_agent_response(
                     resolved_name = tool_id_to_name.get(tool_id, resp_name)
                     if resolved_name in TRIP_MUTATING_TOOLS:
                         try:
+                            # ADK wraps string tool returns as {"result": "<json>"}
+                            # so we need to unwrap before looking for itemId
                             parsed = (
                                 result_data
                                 if isinstance(result_data, dict)
                                 else json.loads(result_str)
                             )
-                            if isinstance(parsed, dict) and parsed.get("itemId"):
-                                timeline_item_ids.append(parsed["itemId"])
+                            # Direct itemId at top level
+                            item_id = None
+                            if isinstance(parsed, dict):
+                                item_id = parsed.get("itemId")
+                                # Or nested inside a "result" string wrapper
+                                if not item_id and isinstance(
+                                    parsed.get("result"), str
+                                ):
+                                    try:
+                                        inner = json.loads(parsed["result"])
+                                        if isinstance(inner, dict):
+                                            item_id = inner.get("itemId")
+                                    except (json.JSONDecodeError, TypeError):
+                                        pass
+                            if item_id:
+                                timeline_item_ids.append(item_id)
                         except (json.JSONDecodeError, TypeError):
                             pass
 

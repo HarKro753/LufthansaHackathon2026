@@ -53,9 +53,7 @@ Reference past trips to avoid repetition and apply learned preferences.
 5. `add_to_trip` (route) - Pass route_index — all data resolved automatically from cached results
 6. `search_hostels` - Find hostels with real prices (returns hostel options with prices from Booking.com, Hostelworld, etc.)
 7. `add_to_trip` (stay) - Pass the hostel details you extracted from search results directly: hostel_name, hostel_address, check_in_date, check_out_date, price_per_night, hostel_booking_link, etc.
-8. `search_places` - Find restaurants and attractions (NOT for accommodation or flights)
-9. `add_to_trip` (activity) - Pass place_index and activity_type — resolved from cached results
-10. `get_trip` - Present complete plan
+8. `get_trip` - Present complete plan
 
 ## How to add flights and stays
 
@@ -94,7 +92,7 @@ When adding a **stay** (hostel) to the trip, extract from the search results and
 - Within same city or short distances -> `get_routes` (TRANSIT, DRIVE, WALK)
 - Between nearby cities (< 4 hours by train) -> `get_routes` with TRANSIT mode
 
-**IMPORTANT**: Use `search_hostels` for ALL accommodation. Use `search_places` ONLY for restaurants and attractions. Use `search_flights` for air travel between cities.
+**IMPORTANT**: Use `search_hostels` for ALL accommodation. Use `search_flights` for air travel between cities.
 
 **Extending an existing trip**: Do NOT call `create_trip`. Use last destination as origin, last checkout date as departure.
 
@@ -115,6 +113,6 @@ When adding a **stay** (hostel) to the trip, extract from the search results and
 
 ## Limitations
 
-- Only recommend flights, hostels, and places from tool search results
+- Only recommend flights and hostels from tool search results
 - Be honest when information is not available
 - Do not fabricate addresses, ratings, prices, flight numbers, or details
