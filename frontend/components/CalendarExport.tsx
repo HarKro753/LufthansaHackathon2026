@@ -14,7 +14,8 @@ export function CalendarExport({ trip }: CalendarExportProps) {
 
   if (!trip) return null;
 
-  const totalEvents = trip.routes.length + trip.stays.length + trip.activities.length;
+  const totalEvents =
+    trip.routes.length + trip.stays.length + trip.activities.length;
   if (totalEvents === 0) return null;
 
   const handleExport = async () => {
@@ -35,7 +36,8 @@ export function CalendarExport({ trip }: CalendarExportProps) {
 
       const disposition = res.headers.get("content-disposition");
       const filenameMatch = disposition?.match(/filename="?(.+?)"?$/);
-      a.download = filenameMatch?.[1] ?? `${trip.name.replace(/[^a-zA-Z0-9]/g, "_")}.ics`;
+      a.download =
+        filenameMatch?.[1] ?? `${trip.name.replace(/[^a-zA-Z0-9]/g, "_")}.ics`;
 
       document.body.appendChild(a);
       a.click();
@@ -55,7 +57,12 @@ export function CalendarExport({ trip }: CalendarExportProps) {
       className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-[#2a2a2a] border border-white/10 text-white/60 hover:text-white hover:border-white/20 hover:bg-[#333] disabled:opacity-40 disabled:cursor-not-allowed"
       title={`Export ${totalEvents} event${totalEvents !== 1 ? "s" : ""} to calendar`}
     >
-      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg
+        className="w-3.5 h-3.5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
         <path
           strokeLinecap="round"
           strokeLinejoin="round"

@@ -44,12 +44,40 @@ _session_map: dict[str, tuple[str, str]] = {}
 async def _get_or_create_session(
     request: Request, response: Response
 ) -> tuple[str, str]:
-    """Return (user_id, session_id), creating a new ADK session if needed."""
+    """Return (user_id, session_id), creating a new ADK session if needed.
+
+    If a cookie exists but the in-memory map was lost (e.g. server restart),
+    we re-create the ADK session and restore the mapping so the session
+    cookie remains valid and the persisted trip/chat data is accessible.
+    """
+    from services import session_store
+
     cookie_id = request.cookies.get("lh_session")
 
     if cookie_id and cookie_id in _session_map:
         return _session_map[cookie_id]
 
+    # Cookie exists but not in memory — restore from persisted session file
+    if cookie_id and session_store.get_session(cookie_id) is not None:
+        user_id = f"user_{cookie_id[:8]}"
+        session = await session_service.create_session(
+            app_name=APP_NAME,
+            user_id=user_id,
+            state={"session_id": cookie_id},
+        )
+        _session_map[cookie_id] = (user_id, session.id)
+        # Re-set cookie to refresh its max_age
+        response.set_cookie(
+            key="lh_session",
+            value=cookie_id,
+            max_age=604800,
+            httponly=True,
+            samesite="none",
+            secure=True,
+        )
+        return user_id, session.id
+
+    # No cookie at all — create a brand new session
     cookie_id = cookie_id or str(uuid.uuid4())
     user_id = f"user_{cookie_id[:8]}"
 
@@ -67,7 +95,7 @@ async def _get_or_create_session(
         max_age=604800,
         httponly=True,
         samesite="none",
-        secure=False,
+        secure=True,
     )
     return user_id, session.id
 
@@ -218,7 +246,7 @@ async def chat(
             max_age=604800,
             httponly=True,
             samesite="none",
-            secure=False,
+            secure=True,
         )
 
     return streaming_response
@@ -270,7 +298,7 @@ async def clear_session(request: Request, response: Response) -> dict:
         session_store.clear_chat_history(cookie_id)
         session_store.clear_trip(cookie_id)
 
-    response.delete_cookie("lh_session")
+    response.delete_cookie("lh_session", samesite="none", secure=True)
     return {"success": True}
 
 

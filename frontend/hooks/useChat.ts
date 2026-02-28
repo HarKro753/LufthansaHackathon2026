@@ -54,17 +54,21 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
 
     fetch(`${API_BASE}/api/session/history`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : { messages: [] }))
-      .then((data: { messages: { role: string; content: string; timestamp: string }[] }) => {
-        if (data.messages.length > 0) {
-          const restored: ChatMessage[] = data.messages.map((m, i) => ({
-            id: `restored-${i}-${Date.now()}`,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            timestamp: new Date(m.timestamp),
-          }));
-          setMessages(restored);
-        }
-      })
+      .then(
+        (data: {
+          messages: { role: string; content: string; timestamp: string }[];
+        }) => {
+          if (data.messages.length > 0) {
+            const restored: ChatMessage[] = data.messages.map((m, i) => ({
+              id: `restored-${i}-${Date.now()}`,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              timestamp: new Date(m.timestamp),
+            }));
+            setMessages(restored);
+          }
+        },
+      )
       .catch(() => {
         // Backend down — no history to restore
       });
@@ -114,7 +118,12 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
 
         setMessages((prev) => [
           ...prev,
-          { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
+          {
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            timestamp: new Date(),
+          },
         ]);
 
         const reader = res.body.getReader();
@@ -151,18 +160,31 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                           content: newContent,
                           activities: [
                             ...acts.slice(0, -1),
-                            { ...last, data: { ...last.data, content: last.data.content + event.content! } },
+                            {
+                              ...last,
+                              data: {
+                                ...last.data,
+                                content: last.data.content + event.content!,
+                              },
+                            },
                           ],
                         };
                       }
                       const block: ActivityItem = {
                         type: "content",
-                        data: { id: genId(), content: event.content! } as ContentBlock,
+                        data: {
+                          id: genId(),
+                          content: event.content!,
+                        } as ContentBlock,
                       };
-                      return { ...msg, content: newContent, activities: [...acts, block] };
+                      return {
+                        ...msg,
+                        content: newContent,
+                        activities: [...acts, block],
+                      };
                     }
                     return { ...msg, content: newContent };
-                  })
+                  }),
                 );
               } else if (event.type === "thinking" && event.content) {
                 setMessages((prev) =>
@@ -175,15 +197,27 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                         ...msg,
                         activities: [
                           ...acts.slice(0, -1),
-                          { ...last, data: { ...last.data, content: last.data.content + event.content! } },
+                          {
+                            ...last,
+                            data: {
+                              ...last.data,
+                              content: last.data.content + event.content!,
+                            },
+                          },
                         ],
                       };
                     }
                     return {
                       ...msg,
-                      activities: [...acts, { type: "thinking", data: { id: genId(), content: event.content! } }],
+                      activities: [
+                        ...acts,
+                        {
+                          type: "thinking",
+                          data: { id: genId(), content: event.content! },
+                        },
+                      ],
                     };
-                  })
+                  }),
                 );
               } else if (event.type === "tool_call_start" && event.toolCall) {
                 pendingToolNames.set(event.toolCall.id, event.toolCall.name);
@@ -192,7 +226,9 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                   prev.map((msg) => {
                     if (msg.id !== assistantId) return msg;
                     const exists = msg.activities?.find(
-                      (a) => a.type === "tool_call" && a.data.id === event.toolCall!.id
+                      (a) =>
+                        a.type === "tool_call" &&
+                        a.data.id === event.toolCall!.id,
                     );
                     if (exists) return msg;
                     return {
@@ -210,7 +246,7 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                         },
                       ],
                     };
-                  })
+                  }),
                 );
               } else if (event.type === "tool_call_args" && event.toolCallId) {
                 setMessages((prev) =>
@@ -220,13 +256,19 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                       ...msg,
                       activities: msg.activities?.map((a) =>
                         a.type === "tool_call" && a.data.id === event.toolCallId
-                          ? { ...a, data: { ...a.data, arguments: event.arguments! } }
-                          : a
+                          ? {
+                              ...a,
+                              data: { ...a.data, arguments: event.arguments! },
+                            }
+                          : a,
                       ),
                     };
-                  })
+                  }),
                 );
-              } else if (event.type === "tool_call_complete" && event.toolCallId) {
+              } else if (
+                event.type === "tool_call_complete" &&
+                event.toolCallId
+              ) {
                 setMessages((prev) =>
                   prev.map((msg) => {
                     if (msg.id !== assistantId) return msg;
@@ -234,11 +276,18 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                       ...msg,
                       activities: msg.activities?.map((a) =>
                         a.type === "tool_call" && a.data.id === event.toolCallId
-                          ? { ...a, data: { ...a.data, status: "completed" as const, result: event.result } }
-                          : a
+                          ? {
+                              ...a,
+                              data: {
+                                ...a.data,
+                                status: "completed" as const,
+                                result: event.result,
+                              },
+                            }
+                          : a,
                       ),
                     };
-                  })
+                  }),
                 );
 
                 // If this was a trip-mutating tool, trigger immediate map refetch
@@ -254,11 +303,18 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
                       ...msg,
                       activities: msg.activities?.map((a) =>
                         a.type === "tool_call" && a.data.id === event.toolCallId
-                          ? { ...a, data: { ...a.data, status: "error" as const, error: event.error } }
-                          : a
+                          ? {
+                              ...a,
+                              data: {
+                                ...a.data,
+                                status: "error" as const,
+                                error: event.error,
+                              },
+                            }
+                          : a,
                       ),
                     };
-                  })
+                  }),
                 );
               } else if (event.type === "error") {
                 throw new Error(event.error ?? "Unknown error");
@@ -284,7 +340,10 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
   const clearMessages = useCallback(async (): Promise<void> => {
     abortRef.current?.abort();
     try {
-      await fetch(`${API_BASE}/api/session`, { method: "DELETE", credentials: "include" });
+      await fetch(`${API_BASE}/api/session`, {
+        method: "DELETE",
+        credentials: "include",
+      });
     } catch {}
     setMessages([]);
     setError(null);
