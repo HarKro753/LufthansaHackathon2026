@@ -9,6 +9,46 @@ const DARK_TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
 
+/**
+ * Decode a Google Encoded Polyline string into an array of [lat, lng] tuples.
+ * Algorithm: https://developers.google.com/maps/documentation/utilities/polylinealgorithm
+ */
+function decodePolyline(encoded: string): [number, number][] {
+  const points: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte: number;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+
+    shift = 0;
+    result = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return points;
+}
+
 const MARKER_COLORS: Record<string, string> = {
   route_origin: "#58a6ff",
   route_destination: "#58a6ff",
@@ -116,7 +156,16 @@ export function TripMap({ trip }: TripMapProps) {
         bounds.push(pos);
       }
 
-      if (route.origin_coordinates && route.destination_coordinates) {
+      if (route.polyline) {
+        const decoded = decodePolyline(route.polyline);
+        if (decoded.length > 0) {
+          Lf.polyline(decoded, {
+            color: "#58a6ff",
+            weight: 3,
+            opacity: 0.8,
+          }).addTo(group);
+        }
+      } else if (route.origin_coordinates && route.destination_coordinates) {
         const from: L.LatLngTuple = [route.origin_coordinates.lat, route.origin_coordinates.lng];
         const to: L.LatLngTuple = [route.destination_coordinates.lat, route.destination_coordinates.lng];
         Lf.polyline([from, to], {
