@@ -28,7 +28,7 @@ MODEL = "gemini-3-flash-preview"
 PROMPT_TEMPLATE = (Path(__file__).parent / "templates" / "prompt.txt").read_text()
 
 
-def _build_system_prompt() -> str:
+def build_system_prompt() -> str:
     """Build the system prompt with current time and user context injected."""
     now = datetime.now(timezone.utc)
     context = user_context.get_all_context()
@@ -43,9 +43,14 @@ def _build_system_prompt() -> str:
 
 
 root_agent = Agent(
-    name="travel_agent",
+    name="traveler_agent",  # Renamed to match the persona better, optional
     model=MODEL,
     description="AI travel agent — plans complete trips with flights, routes, hostels, and activities.",
-    instruction=_build_system_prompt(),
+    instruction=build_system_prompt(),
     tools=ALL_TOOLS,
 )
+
+
+def refresh_agent_instruction() -> None:
+    """Refresh the agent's system prompt with the latest context."""
+    root_agent.instruction = build_system_prompt()

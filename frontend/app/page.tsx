@@ -14,6 +14,7 @@ import { InteractiveBackground } from "@/components/InteractiveBackground";
 import { TimelineCard } from "@/components/TimelineCard";
 import StepIndicator from "@/components/onboarding/StepIndicator";
 import LoadingScreen from "@/components/onboarding/LoadingScreen";
+import ProfileGenerationLoadingScreen from "@/components/onboarding/ProfileGenerationLoadingScreen";
 import TravelDNAStep from "@/components/onboarding/TravelDNAStep";
 import MovementStep from "@/components/onboarding/MovementStep";
 import WorldStep from "@/components/onboarding/WorldStep";
@@ -668,6 +669,7 @@ export default function Page() {
   const [obError, setObError] = useState("");
   const [obLoadingStep, setObLoadingStep] = useState(0);
   const [obIsLoading, setObIsLoading] = useState(false);
+  const [obGeneratingProfile, setObGeneratingProfile] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -817,10 +819,37 @@ export default function Page() {
     textareaRef.current?.focus();
   };
 
+  const handleFinishOnboarding = async () => {
+    if (!obResult) return;
+    setObGeneratingProfile(true);
+    try {
+      const res = await fetch("/api/generate-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysis: obResult }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("traveler_context", data.traveler);
+          window.localStorage.setItem("trip_memory", data.trip_memory);
+        }
+      }
+    } catch (e) {
+      console.error("Profile generation failed", e);
+    } finally {
+      setObGeneratingProfile(false);
+      setOnboardingComplete(true);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════════════════════
   // ONBOARDING FLOW — shown before the chat
   // ══════════════════════════════════════════════════════════════════════════════
   if (!onboardingComplete) {
+    if (obGeneratingProfile) {
+      return <ProfileGenerationLoadingScreen />;
+    }
     return (
       <>
         {/* ─── Step 0: Hero Login ─── */}
@@ -1059,7 +1088,7 @@ export default function Page() {
                   suggestions={obResult.suggestions}
                   email={obResult.email}
                   onBack={() => setObStep(4)}
-                  onFinish={() => setOnboardingComplete(true)}
+                  onFinish={handleFinishOnboarding}
                 />
               )}
             </div>

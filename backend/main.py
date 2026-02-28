@@ -448,6 +448,30 @@ class LoginRequest(BaseModel):
     email: str
 
 
+class GenerateProfileRequest(BaseModel):
+    analysis: dict
+
+
+@app.post("/api/generate-profile")
+async def generate_profile(body: GenerateProfileRequest) -> dict:
+    """Generate TRAVELER.md and TRIP_MEMORY.md from analysis data."""
+    from services.profile_generator import generate_profile_files
+    from services import user_context
+    from agent import refresh_agent_instruction
+
+    # Generate content
+    files = generate_profile_files(body.analysis)
+
+    # Save to disk
+    user_context.write("TRAVELER.md", files["traveler"])
+    user_context.write("TRIP_MEMORY.md", files["trip_memory"])
+
+    # Refresh agent context
+    refresh_agent_instruction()
+
+    return files
+
+
 @app.get("/api/emails")
 async def list_emails() -> dict:
     """List available demo emails (for the frontend hint)."""
