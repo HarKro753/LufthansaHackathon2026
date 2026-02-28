@@ -29,7 +29,7 @@ function decodePolyline(encoded: string): [number, number][] {
 const MARKER_COLORS: Record<string, string> = {
   route_origin: "#000000",
   route_destination: "#000000",
-  stay: "#9333ea",
+  stay: "#FF385C",
   restaurant: "#ef4444",
   attraction: "#eab308",
   activity: "#10b981",
@@ -260,7 +260,7 @@ export function TripMap({ trip }: TripMapProps) {
 
           <div className="p-4 border-t border-gray-100 bg-white flex items-center justify-between">
             <span className="text-sm font-medium text-gray-600">Chosen destinations ({totalItems})</span>
-            <button className="px-5 py-2.5 bg-[#2B2136] text-white text-sm font-semibold rounded-xl hover:bg-[#1a1423] transition-colors shadow-md">
+            <button className="px-5 py-2.5 bg-[#FF385C] text-white text-sm font-semibold rounded-xl hover:bg-[#cc1c40] transition-colors shadow-md">
               Generate Trip
             </button>
           </div>
@@ -293,3 +293,4 @@ export function TripMap({ trip }: TripMapProps) {
     </div>
   );
 }
+

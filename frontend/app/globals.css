@@ -19,7 +19,9 @@
   --border: rgba(0, 0, 0, 0.1);
   --input-background: #f3f3f5;
   --switch-background: #cbced4;
-  --ring: oklch(0.708 0 0);
+  --ring: #FF385C;
+  --brand: #FF385C;
+  --brand-foreground: #ffffff;
   --radius: 0.625rem;
 }
 
@@ -38,6 +40,8 @@
   --color-border: var(--border);
   --color-input-background: var(--input-background);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -58,7 +62,10 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     font-weight: 500;
   }
@@ -67,15 +74,31 @@
     font-weight: 500;
   }
 
-  input, textarea {
+  input,
+  textarea {
     font-weight: 400;
   }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbced4; border-radius: 3px; }
+::-webkit-scrollbar {
+  width: 6px;
+}
 
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbced4;
+  border-radius: 3px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

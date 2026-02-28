@@ -9,6 +9,7 @@ import { useTrip } from "@/hooks/useTrip";
 import { TripMap } from "@/components/TripMap";
 import { CalendarExport } from "@/components/CalendarExport";
 import type { ChatMessage, ActivityItem, ToolCall } from "@/types/chat";
+import { motion } from "motion/react";
 
 // ─── Markdown components ──────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ const md: Components = {
   strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
   em: ({ children }) => <em className="italic text-gray-600">{children}</em>,
   a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#FF385C] hover:underline">
       {children}
     </a>
   ),
@@ -39,7 +40,7 @@ const md: Components = {
     <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto my-3 border border-gray-100">{children}</pre>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-purple-400 pl-4 py-2 my-3 bg-purple-50 rounded-r text-gray-600 italic">
+    <blockquote className="border-l-4 border-purple-400 pl-4 py-2 my-3 bg-[#FFF0F3] rounded-r text-gray-600 italic">
       {children}
     </blockquote>
   ),
@@ -79,7 +80,7 @@ function LoadingAnimation() {
   return (
     <div className="flex items-center gap-1 py-2">
       <svg className="w-12 h-5" viewBox="0 0 40 16" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="6" cy="8" r="4" fill="#C084FC">
+        <circle cx="6" cy="8" r="4" fill="#FF91A4">
           <animate
             attributeName="cy"
             calcMode="spline"
@@ -90,7 +91,7 @@ function LoadingAnimation() {
             repeatCount="indefinite"
           />
         </circle>
-        <circle cx="20" cy="8" r="4" fill="#A855F7">
+        <circle cx="20" cy="8" r="4" fill="#FF385C">
           <animate
             attributeName="cy"
             calcMode="spline"
@@ -101,7 +102,7 @@ function LoadingAnimation() {
             repeatCount="indefinite"
           />
         </circle>
-        <circle cx="34" cy="8" r="4" fill="#7C3AED">
+        <circle cx="34" cy="8" r="4" fill="#FF385C">
           <animate
             attributeName="cy"
             calcMode="spline"
@@ -121,16 +122,16 @@ function LoadingAnimation() {
 
 function ThinkingBlock({ content }: { content: string }) {
   return (
-    <div className="flex items-start gap-2 mb-3 p-3 bg-purple-50 border border-purple-100 rounded-xl">
+    <div className="flex items-start gap-2 mb-3 p-3 bg-[#FFF0F3] border border-[#FFB3C1] rounded-xl">
       <svg
-        className="w-4 h-4 text-purple-400 mt-0.5 shrink-0 animate-pulse"
+        className="w-4 h-4 text-[#FF385C] mt-0.5 shrink-0 animate-pulse"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
       >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
-      <p className="text-sm text-purple-700 leading-relaxed">{content}</p>
+      <p className="text-sm text-[#cc1c40] leading-relaxed">{content}</p>
     </div>
   );
 }
@@ -140,7 +141,7 @@ function ThinkingBlock({ content }: { content: string }) {
 function ToolIcon({ name, status }: { name: string; status: ToolCall["status"] }) {
   if (status === "executing") {
     return (
-      <svg className="w-4 h-4 text-purple-500 animate-spin" viewBox="0 0 24 24" fill="none">
+      <svg className="w-4 h-4 text-[#FF385C] animate-spin" viewBox="0 0 24 24" fill="none">
         <path
           d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
           stroke="currentColor"
@@ -165,7 +166,7 @@ function ToolIcon({ name, status }: { name: string; status: ToolCall["status"] }
   }
   if (name === "search_places" || name === "google_search") {
     return (
-      <svg className="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-4 h-4 text-[#FF385C]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -219,7 +220,7 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
       className={`mb-3 rounded-xl border transition-all ${toolCall.status === "error"
         ? "border-red-200 bg-red-50"
         : toolCall.status === "executing"
-          ? "border-purple-200 bg-purple-50"
+          ? "border-[#FFB3C1] bg-[#FFF0F3]"
           : "border-gray-100 bg-white shadow-sm"
         }`}
     >
@@ -232,7 +233,7 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
         <div className="flex items-center gap-3">
           <ToolIcon name={toolCall.name} status={toolCall.status} />
           <span
-            className={`text-sm font-medium ${toolCall.status === "executing" ? "text-purple-700" : "text-gray-700"
+            className={`text-sm font-medium ${toolCall.status === "executing" ? "text-[#cc1c40]" : "text-gray-700"
               }`}
           >
             {statusText()}
@@ -401,50 +402,90 @@ export default function Page() {
         <div className="flex-1 overflow-y-auto scroll-smooth">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-5 px-6 text-center">
-              {/* Animated plane SVG */}
-              <div className="w-20 h-20 relative">
-                <svg viewBox="0 0 80 80" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="40" cy="40" r="38" fill="#f3f4f6" />
-                  <g transform="translate(40,40)">
-                    <animateTransform
-                      attributeName="transform"
-                      type="rotate"
-                      from="0 0 0"
-                      to="360 0 0"
-                      dur="8s"
-                      repeatCount="indefinite"
+              {/* Animated Figma Illustration */}
+              <div className="w-40 h-40 relative mx-auto drop-shadow-sm">
+                <motion.svg
+                  width="160"
+                  height="160"
+                  viewBox="0 0 160 160"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                >
+                  {/* Soft background glow / circle */}
+                  <circle cx="80" cy="80" r="70" fill="#FFF8F9" />
+                  <circle cx="80" cy="80" r="50" fill="#FCE8EC" />
+
+                  {/* Globe Outline */}
+                  <circle cx="80" cy="80" r="40" stroke="#FF385C" strokeWidth="3" />
+                  <path d="M80 40C95 40 105 58 105 80C105 102 95 120 80 120" stroke="#FF385C" strokeWidth="3" strokeLinecap="round" />
+                  <path d="M80 40C65 40 55 58 55 80C55 102 65 120 80 120" stroke="#FF385C" strokeWidth="3" strokeLinecap="round" />
+                  <path d="M40 80H120" stroke="#FF385C" strokeWidth="3" strokeLinecap="round" />
+                  <path d="M48 60H112" stroke="#FF385C" strokeWidth="3" strokeLinecap="round" />
+                  <path d="M48 100H112" stroke="#FF385C" strokeWidth="3" strokeLinecap="round" />
+
+                  {/* Paper Plane / Flight Path */}
+                  <motion.path
+                    d="M80 80C95 60 120 45 140 30"
+                    stroke="#00A699"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray="6 6"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 1, delay: 0.3 }}
+                  />
+
+                  {/* Airplane */}
+                  <motion.g
+                    initial={{ opacity: 0, x: -10, y: 10 }}
+                    animate={{ opacity: 1, x: 0, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.8 }}
+                  >
+                    <path
+                      d="M136.5 24.5C138.5 22.5 142.5 20.5 145 23C147.5 25.5 145.5 29.5 143.5 31.5L127 48L114 49L117 38L136.5 24.5Z"
+                      fill="#FF385C"
                     />
                     <path
-                      d="M0,-18 L4,-8 L16,-12 L12,-4 L20,0 L12,4 L16,12 L4,8 L0,18 L-4,8 L-16,12 L-12,4 L-20,0 L-12,-4 L-16,-12 L-4,-8 Z"
-                      fill="#e9d5ff"
-                      opacity="0.5"
+                      d="M124 41L114 49L108 43L116 33Z"
+                      fill="#cc1c40"
                     />
-                  </g>
-                  <path
-                    d="M22 40 L38 30 L52 40 L38 36 Z"
-                    fill="#7c3aed"
-                    transform="rotate(-15 40 40)"
+                  </motion.g>
+
+                  {/* Location Pin */}
+                  <motion.g
+                    initial={{ scale: 0, y: -10 }}
+                    animate={{ scale: 1, y: 0 }}
+                    transition={{ type: "spring", bounce: 0.5, delay: 1 }}
                   >
-                    <animateTransform
-                      attributeName="transform"
-                      type="translate"
-                      values="0,0; 2,-2; 0,0"
-                      dur="2s"
-                      repeatCount="indefinite"
-                      additive="sum"
+                    <path
+                      d="M55 45C55 36.7157 61.7157 30 70 30C78.2843 30 85 36.7157 85 45C85 55 70 65 70 65C70 65 55 55 55 45Z"
+                      fill="#FFB400"
                     />
-                  </path>
-                  <path d="M36 40 L40 46 L44 40" fill="#7c3aed" opacity="0.4" transform="rotate(-15 40 40)">
-                    <animateTransform
-                      attributeName="transform"
-                      type="translate"
-                      values="0,0; 2,-2; 0,0"
-                      dur="2s"
-                      repeatCount="indefinite"
-                      additive="sum"
-                    />
-                  </path>
-                </svg>
+                    <circle cx="70" cy="43" r="5" fill="#FFFFFF" />
+                  </motion.g>
+
+                  {/* Floating Clouds */}
+                  <motion.g
+                    animate={{ y: [0, -3, 0] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <path d="M45 105C45 102.239 47.2386 100 50 100H65C67.7614 100 70 102.239 70 105C70 107.761 67.7614 110 65 110H50C47.2386 110 45 107.761 45 105Z" fill="#EBEBEB" />
+                    <circle cx="53" cy="101" r="6" fill="#EBEBEB" />
+                    <circle cx="61" cy="102" r="5" fill="#EBEBEB" />
+                  </motion.g>
+
+                  <motion.g
+                    animate={{ y: [0, 4, 0] }}
+                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                  >
+                    <path d="M100 115C100 113.343 101.343 112 103 112H117C118.657 112 120 113.343 120 115C120 116.657 118.657 118 117 118H103C101.343 118 100 116.657 100 115Z" fill="#F7F7F7" />
+                    <circle cx="106" cy="112" r="4" fill="#F7F7F7" />
+                    <circle cx="113" cy="113" r="3" fill="#F7F7F7" />
+                  </motion.g>
+                </motion.svg>
               </div>
               <h1 className="text-3xl font-black text-gray-900 tracking-tight">Plan your perfect trip</h1>
               <p className="text-base text-gray-500 max-w-xs">
@@ -507,7 +548,7 @@ export default function Page() {
           )}
 
           {/* Input bar */}
-          <div className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm focus-within:shadow-md focus-within:border-purple-300 transition-all p-3">
+          <div className="flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm focus-within:shadow-md focus-within:border-[#FF8FA3] transition-all p-3">
             <textarea
               ref={textareaRef}
               value={input}
@@ -572,3 +613,4 @@ export default function Page() {
     </div>
   );
 }
+
