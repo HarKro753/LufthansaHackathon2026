@@ -30,6 +30,7 @@ docs/
 | `.claude/skills/google-travel-apis/` | Google Places (hotels, restaurants) + Routes (directions) |
 | `.claude/skills/python-fastapi/` | FastAPI patterns, Pydantic v2, async endpoints |
 | `.claude/skills/travel-agent-apis/` | General travel API patterns |
+| `.claude/skills/brightdata-google-hotels/` | Scrape Google Hotels prices via Bright Data SERP API |
 
 ## API Keys (.env)
 
