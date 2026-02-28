@@ -7,6 +7,7 @@ search results and passes it here.
 
 import json
 import math
+import urllib.parse
 import uuid
 from datetime import datetime
 
@@ -55,6 +56,7 @@ async def add_to_trip(
     hostel_stars: int = 0,
     hostel_booking_link: str = "",
     hostel_booking_source: str = "",
+    hostel_image_url: str = "",
     activity_type: str = "activity",
     scheduled_date: str = "",
     tool_context: ToolContext | None = None,
@@ -96,6 +98,7 @@ async def add_to_trip(
         hostel_stars: Stay: star rating (1-5). Use 0 if unknown.
         hostel_booking_link: Stay: URL to book this hostel.
         hostel_booking_source: Stay: booking provider name, e.g. "Booking.com", "Hostelworld".
+        hostel_image_url: Stay: URL to a photo/image of the hostel. Pass the image URL from the search results if available.
         activity_type: Activity type: 'restaurant', 'attraction', or 'activity'. Defaults to 'activity'.
         scheduled_date: Activity: scheduled date/time (ISO 8601).
 
@@ -146,6 +149,7 @@ async def add_to_trip(
             stars=hostel_stars,
             booking_link=hostel_booking_link,
             booking_source=hostel_booking_source,
+            image_url=hostel_image_url,
             reason=selection_reason,
         )
     if item_type == "activity":
@@ -292,6 +296,7 @@ def _add_stay_direct(
     stars: int,
     booking_link: str,
     booking_source: str,
+    image_url: str,
     reason: str,
 ) -> str:
     """Add a stay using data passed directly by the LLM."""
@@ -317,6 +322,10 @@ def _add_stay_direct(
     total_price = price_per_night * nights if price_per_night > 0 else None
     coordinates = Coordinates(lat=lat, lng=lng) if lat != 0.0 and lng != 0.0 else None
 
+    # Build a Google Maps search URL for the hotel
+    maps_query = urllib.parse.quote_plus(f"{name} {address}".strip())
+    google_maps_url = f"https://www.google.com/maps/search/?api=1&query={maps_query}"
+
     stay = TripStay(
         id=uuid.uuid4().hex,
         name=name,
@@ -333,6 +342,8 @@ def _add_stay_direct(
         rating=rating if rating > 0 else None,
         reviews=reviews if reviews > 0 else None,
         stars=stars if stars > 0 else None,
+        image_url=image_url or None,
+        google_maps_url=google_maps_url,
         selection_reason=reason,
     )
 

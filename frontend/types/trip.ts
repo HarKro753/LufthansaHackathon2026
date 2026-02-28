@@ -80,6 +80,8 @@ export interface TripStay {
   stars: number | null;
   amenities: string[] | null;
   website: string | null;
+  image_url: string | null;
+  google_maps_url: string | null;
   selection_reason: string;
 }
 

@@ -68,21 +68,33 @@ async def search_hostels(
         return json.dumps({"error": raw_data["error"]})
 
     # Strip large base64 images and navigation noise to save tokens
+    # Keep only the first image URL per hotel for thumbnails
     raw_data.pop("navigation", None)
     raw_data.pop("pagination", None)
     raw_data.pop("related", None)
     raw_data.pop("people_also_ask", None)
 
     for item in raw_data.get("organic", []):
-        item.pop("image", None)
         item.pop("image_base64", None)
         item.pop("icon", None)
+        # Keep "image" if it's a URL string; strip if it's base64-encoded data
+        img = item.get("image", "")
+        if isinstance(img, str) and img.startswith("data:"):
+            item.pop("image", None)
 
     for ad in raw_data.get("top_ads", []):
-        ad.pop("image", None)
         ad.pop("image_base64", None)
         ad.pop("referral_link", None)
+        img = ad.get("image", "")
+        if isinstance(img, str) and img.startswith("data:"):
+            ad.pop("image", None)
 
     raw_data.pop("bottom_ads", None)
+
+    # Preserve first image from hotel detail results (Bright Data "images" array)
+    hotel_data = raw_data.get("hotel", {})
+    images = hotel_data.get("images") or raw_data.get("images")
+    if isinstance(images, list) and images:
+        raw_data["first_image_url"] = images[0]
 
     return json.dumps(raw_data)

@@ -158,7 +158,7 @@ function TripMarker({
       </AdvancedMarker>
 
       {activeMarkerId === markerId && marker && (
-        <InfoWindow anchor={marker} onCloseClick={onInfoClose}>
+        <InfoWindow anchor={marker} onCloseClick={onInfoClose} maxWidth={280}>
           <div dangerouslySetInnerHTML={{ __html: popupContent }} />
         </InfoWindow>
       )}
@@ -311,13 +311,29 @@ function buildMarkers(trip: TripState): MarkerData[] {
   for (const stay of trip.stays) {
     if (!stay.coordinates) continue;
     const priceStr = stay.total_price ? ` | ${stay.total_price} EUR` : "";
+    const starsStr = stay.stars ? "★".repeat(stay.stars) : "";
+    const ratingStr = stay.rating ? `Rating: ${stay.rating}` : "";
+    const metaLine = [starsStr, ratingStr].filter(Boolean).join(" · ");
+
+    const imageHtml = stay.image_url
+      ? `<img src="${stay.image_url}" alt="${stay.name}" style="width:100%;max-width:240px;height:140px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
+      : "";
+
+    const mapsLinkHtml = stay.google_maps_url
+      ? `<a href="${stay.google_maps_url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;color:#1a73e8;font-size:12px;font-weight:600;text-decoration:none;">📍 Open in Google Maps</a>`
+      : "";
+
+    const bookingLinkHtml = stay.booking_link
+      ? `<a href="${stay.booking_link}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;color:#FF385C;font-size:12px;font-weight:600;text-decoration:none;">🔗 Book now${stay.booking_source ? ` on ${stay.booking_source}` : ""}</a>`
+      : "";
+
     markers.push({
       id: `stay-${stay.id}`,
       position: { lat: stay.coordinates.lat, lng: stay.coordinates.lng },
       color: MARKER_COLORS.stay,
       label: stay.name,
       price: stay.total_price,
-      popupContent: `<b>${stay.name}</b><br/>${stay.address}<br/>${stay.nights} night${stay.nights !== 1 ? "s" : ""}${priceStr}`,
+      popupContent: `<div style="max-width:240px;font-family:ui-sans-serif,system-ui,sans-serif;">${imageHtml}<div style="font-size:14px;font-weight:700;margin-bottom:2px;">${stay.name}</div><div style="font-size:12px;color:#666;margin-bottom:2px;">${stay.address}</div>${metaLine ? `<div style="font-size:12px;color:#444;margin-bottom:2px;">${metaLine}</div>` : ""}<div style="font-size:12px;color:#333;">${stay.nights} night${stay.nights !== 1 ? "s" : ""}${priceStr}</div><div style="display:flex;flex-direction:column;gap:2px;">${mapsLinkHtml}${bookingLinkHtml}</div></div>`,
     });
   }
 

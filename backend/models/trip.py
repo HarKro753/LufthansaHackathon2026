@@ -69,6 +69,8 @@ class TripStay(BaseModel):
     stars: int | None = None
     amenities: list[str] | None = None
     website: str | None = None
+    image_url: str | None = None
+    google_maps_url: str | None = None
     selection_reason: str = ""
 
 
