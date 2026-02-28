@@ -34,6 +34,19 @@ bun run dev
 
 Open http://localhost:3000
 
+### Docker
+
+```bash
+# Create backend/.env with your keys first
+cp backend/.env.example backend/.env
+
+# Build and run both services
+docker compose up --build
+```
+
+- Backend: http://localhost:8000
+- Frontend: http://localhost:3000
+
 ## Env
 
 ```env

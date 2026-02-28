@@ -35,7 +35,11 @@ export function useChat(): UseChatReturn {
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
-      const userMsg: Message = { id: genId(), role: "user", content: content.trim() };
+      const userMsg: Message = {
+        id: genId(),
+        role: "user",
+        content: content.trim(),
+      };
       const assistantId = genId();
 
       setMessages((prev) => [...prev, userMsg]);
@@ -86,8 +90,8 @@ export function useChat(): UseChatReturn {
                   prev.map((m) =>
                     m.id === assistantId
                       ? { ...m, content: m.content + event.content }
-                      : m
-                  )
+                      : m,
+                  ),
                 );
               } else if (event.type === "error") {
                 throw new Error(event.error);
@@ -107,7 +111,7 @@ export function useChat(): UseChatReturn {
         abortRef.current = null;
       }
     },
-    [messages, isLoading]
+    [messages, isLoading],
   );
 
   const clearMessages = useCallback(async (): Promise<void> => {
