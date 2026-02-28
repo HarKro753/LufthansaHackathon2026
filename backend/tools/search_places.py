@@ -1,7 +1,8 @@
-"""Google Places API tool (New Places API)."""
+"""Google Places API tool — search for hotels, restaurants, attractions."""
 
 import json
 import os
+
 import httpx
 
 PLACES_BASE = "https://places.googleapis.com/v1/places:searchText"
@@ -22,6 +23,14 @@ FIELD_MASK = ",".join(
     ]
 )
 
+PRICE_MAP = {
+    "PRICE_LEVEL_FREE": "Free",
+    "PRICE_LEVEL_INEXPENSIVE": "€",
+    "PRICE_LEVEL_MODERATE": "€€",
+    "PRICE_LEVEL_EXPENSIVE": "€€€",
+    "PRICE_LEVEL_VERY_EXPENSIVE": "€€€€",
+}
+
 
 async def search_places(
     text_query: str,
@@ -30,7 +39,7 @@ async def search_places(
     location_bias_radius: float = 5000.0,
     included_type: str | None = None,
     max_result_count: int = 5,
-) -> dict:
+) -> str:
     """Search for places like hotels, restaurants, airports, or attractions using Google Places.
 
     Use this when the user asks about places to stay, eat, visit, or travel to.
@@ -45,12 +54,10 @@ async def search_places(
         included_type: Optional place type filter, e.g. "hotel", "restaurant",
             "airport", "tourist_attraction", "museum".
         max_result_count: Max number of results to return (1-20, default 5).
-
-    Returns dict with list of places including name, address, rating, and links.
     """
     api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
     if not api_key:
-        return {"error": "GOOGLE_MAPS_API_KEY not configured"}
+        return json.dumps({"error": "GOOGLE_MAPS_API_KEY not configured"})
 
     payload: dict = {
         "textQuery": text_query,
@@ -86,32 +93,29 @@ async def search_places(
             res.raise_for_status()
             data = res.json()
     except httpx.HTTPStatusError as e:
-        return {
-            "error": f"Places API error {e.response.status_code}: {e.response.text[:200]}"
-        }
+        return json.dumps(
+            {
+                "error": f"Places API error {e.response.status_code}: {e.response.text[:200]}"
+            }
+        )
     except Exception as e:
-        return {"error": str(e)}
+        return json.dumps({"error": str(e)})
 
     places = data.get("places", [])
     if not places:
-        return {"results": [], "message": f"No places found for: {text_query}"}
+        return json.dumps(
+            {"results": [], "message": f"No places found for: {text_query}"}
+        )
 
     results = []
     for p in places:
-        price_map = {
-            "PRICE_LEVEL_FREE": "Free",
-            "PRICE_LEVEL_INEXPENSIVE": "€",
-            "PRICE_LEVEL_MODERATE": "€€",
-            "PRICE_LEVEL_EXPENSIVE": "€€€",
-            "PRICE_LEVEL_VERY_EXPENSIVE": "€€€€",
-        }
         item: dict = {
             "name": p.get("displayName", {}).get("text", "Unknown"),
             "address": p.get("formattedAddress", ""),
             "type": p.get("primaryTypeDisplayName", {}).get("text", ""),
             "rating": p.get("rating"),
             "total_ratings": p.get("userRatingCount"),
-            "price_level": price_map.get(p.get("priceLevel", ""), None),
+            "price_level": PRICE_MAP.get(p.get("priceLevel", ""), None),
             "phone": p.get("internationalPhoneNumber"),
             "website": p.get("websiteUri"),
             "maps_url": p.get("googleMapsUri"),
@@ -124,4 +128,4 @@ async def search_places(
 
         results.append({k: v for k, v in item.items() if v is not None})
 
-    return {"query": text_query, "count": len(results), "results": results}
+    return json.dumps({"query": text_query, "count": len(results), "results": results})
