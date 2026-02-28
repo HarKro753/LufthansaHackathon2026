@@ -121,50 +121,110 @@ const toolDisplayNames: Record<string, string> = {
   read_context: "Read Preferences",
 };
 
+/** Friendly loading messages shown while a tool is executing */
+const toolLoadingMessages: Record<string, string> = {
+  search_flights: "Searching for flights",
+  search_hostels: "Finding hotels & stays",
+  search_places: "Searching for places",
+  google_search: "Looking things up",
+  get_routes: "Finding the best route",
+  create_trip: "Creating your trip",
+  add_to_trip: "Adding to your trip",
+  update_trip: "Updating your trip",
+  remove_from_trip: "Removing from trip",
+  get_trip: "Loading your trip",
+  edit_context: "Saving your preferences",
+  read_context: "Reading your preferences",
+};
+
 // ─── Animated SVG Loading dots ────────────────────────────────────────────────
+
+function BouncingDots() {
+  return (
+    <svg
+      className="w-8 h-4 shrink-0"
+      viewBox="0 0 32 12"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="4" cy="6" r="3" fill="#FF91A4">
+        <animate
+          attributeName="cy"
+          calcMode="spline"
+          dur="0.7s"
+          values="6;2;6"
+          keySplines=".33,.66,.66,1;.33,0,.66,.33"
+          begin="0s"
+          repeatCount="indefinite"
+        />
+      </circle>
+      <circle cx="16" cy="6" r="3" fill="#FF385C">
+        <animate
+          attributeName="cy"
+          calcMode="spline"
+          dur="0.7s"
+          values="6;2;6"
+          keySplines=".33,.66,.66,1;.33,0,.66,.33"
+          begin="0.12s"
+          repeatCount="indefinite"
+        />
+      </circle>
+      <circle cx="28" cy="6" r="3" fill="#FF385C">
+        <animate
+          attributeName="cy"
+          calcMode="spline"
+          dur="0.7s"
+          values="6;2;6"
+          keySplines=".33,.66,.66,1;.33,0,.66,.33"
+          begin="0.24s"
+          repeatCount="indefinite"
+        />
+      </circle>
+    </svg>
+  );
+}
 
 function LoadingAnimation() {
   return (
     <div className="flex items-center gap-1 py-2">
-      <svg
-        className="w-12 h-5"
-        viewBox="0 0 40 16"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <circle cx="6" cy="8" r="4" fill="#FF91A4">
-          <animate
-            attributeName="cy"
-            calcMode="spline"
-            dur="0.7s"
-            values="8;3;8"
-            keySplines=".33,.66,.66,1;.33,0,.66,.33"
-            begin="0s"
-            repeatCount="indefinite"
+      <BouncingDots />
+    </div>
+  );
+}
+
+/** Loading indicator with contextual text based on the currently executing tool */
+function LoadingStatus({ activities }: { activities: ActivityItem[] }) {
+  // Find the last tool call that is still executing
+  const executingTools = activities.filter(
+    (a): a is ActivityItem & { type: "tool_call" } =>
+      a.type === "tool_call" && a.data.status === "executing",
+  );
+  const lastExecuting =
+    executingTools.length > 0
+      ? executingTools[executingTools.length - 1]
+      : null;
+
+  const toolName = lastExecuting?.data.name ?? "";
+  const message = toolLoadingMessages[toolName] ?? "Thinking";
+
+  return (
+    <div className="flex items-center gap-2.5 py-2 mb-2">
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFF0F3] border border-[#FFB3C1]">
+        <svg
+          className="w-3.5 h-3.5 text-[#FF385C] animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
-        </circle>
-        <circle cx="20" cy="8" r="4" fill="#FF385C">
-          <animate
-            attributeName="cy"
-            calcMode="spline"
-            dur="0.7s"
-            values="8;3;8"
-            keySplines=".33,.66,.66,1;.33,0,.66,.33"
-            begin="0.12s"
-            repeatCount="indefinite"
-          />
-        </circle>
-        <circle cx="34" cy="8" r="4" fill="#FF385C">
-          <animate
-            attributeName="cy"
-            calcMode="spline"
-            dur="0.7s"
-            values="8;3;8"
-            keySplines=".33,.66,.66,1;.33,0,.66,.33"
-            begin="0.24s"
-            repeatCount="indefinite"
-          />
-        </circle>
-      </svg>
+        </svg>
+        <span className="text-sm font-medium text-[#cc1c40]">{message}</span>
+        <BouncingDots />
+      </div>
     </div>
   );
 }
@@ -403,19 +463,10 @@ function ActivityRenderer({
   item: ActivityItem;
   isLastTimeline: boolean;
 }) {
-  // Hide thinking and tool_call activities — we only show loading dots + timeline cards
+  // Hide thinking, tool_call, and content — content only renders as trailing text
   if (item.type === "thinking") return null;
   if (item.type === "tool_call") return null;
-
-  if (item.type === "content") {
-    return (
-      <div className="prose prose-sm prose-slate max-w-none mb-3">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
-          {item.data.content}
-        </ReactMarkdown>
-      </div>
-    );
-  }
+  if (item.type === "content") return null;
 
   if (item.type === "timeline") {
     return <TimelineCard item={item.data} isLast={isLastTimeline} />;
@@ -429,20 +480,32 @@ function ActivityRenderer({
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const activities = message.activities ?? [];
-  const visibleActivities = activities.filter(isVisibleActivity);
-  const hasVisibleActivities = visibleActivities.length > 0;
-  const hasContentActivities = activities.some((a) => a.type === "content");
+  const hasTimeline = activities.some((a) => a.type === "timeline");
 
-  // Show loading dots when tool calls are executing and nothing visible has appeared yet
+  // Show contextual loading status whenever a tool call is executing
   const isWorking = hasExecutingToolCall(activities);
-  const showLoadingDots = isWorking && !hasVisibleActivities;
 
-  // Find the index of the last timeline item for the connector line
+  // Find the last timeline item for the connector line
   const timelineItems = activities.filter((a) => a.type === "timeline");
   const lastTimelineId =
     timelineItems.length > 0
       ? timelineItems[timelineItems.length - 1].data
       : null;
+
+  // Collect trailing text: all content after the last timeline item (or all if no timeline)
+  const lastTimelineIndex = activities.reduce(
+    (acc, item, i) => (item.type === "timeline" ? i : acc),
+    -1,
+  );
+  const trailingContent = activities
+    .slice(lastTimelineIndex + 1)
+    .filter((a) => a.type === "content")
+    .map((a) => (a as { type: "content"; data: { content: string } }).data.content)
+    .join("");
+
+  // For messages with no activities, use the raw content
+  const fallbackContent =
+    !activities.length && message.content ? message.content : "";
 
   if (isUser) {
     return (
@@ -458,44 +521,54 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
   return (
     <div className="py-2">
-      <div className="max-w-full mx-auto px-4 flex gap-3">
-        <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-1 shadow-sm">
-          LH
-        </div>
-        <div className="flex-1 min-w-0 pt-1">
-          {activities.length > 0 && (
-            <div className="mb-2">
-              {activities.map((item, i) => {
-                // For timeline items, determine if this is the last one
-                const isLastTimeline =
-                  item.type === "timeline" && item.data === lastTimelineId;
+      <div className="max-w-full mx-auto px-4">
+        {/* Timeline cards — full width, no avatar offset */}
+        {activities.length > 0 && (
+          <div className="mb-2">
+            {activities.map((item, i) => {
+              const isLastTimeline =
+                item.type === "timeline" && item.data === lastTimelineId;
 
-                return (
-                  <ActivityRenderer
-                    key={
-                      (item.type === "timeline"
-                        ? `tl-${item.data.itemType}-${item.data.data.id}`
-                        : item.data.id) +
-                      "-" +
-                      i
-                    }
-                    item={item}
-                    isLastTimeline={isLastTimeline}
-                  />
-                );
-              })}
-            </div>
-          )}
-          {showLoadingDots && <LoadingAnimation />}
-          {message.content && !hasContentActivities && !hasVisibleActivities && (
-            <div className="prose prose-sm prose-slate max-w-none text-gray-800">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
-                {message.content}
-              </ReactMarkdown>
-            </div>
-          )}
-          {!activities.length && !message.content && <LoadingAnimation />}
-        </div>
+              return (
+                <ActivityRenderer
+                  key={
+                    (item.type === "timeline"
+                      ? `tl-${item.data.itemType}-${item.data.data.id}`
+                      : item.data.id) +
+                    "-" +
+                    i
+                  }
+                  item={item}
+                  isLastTimeline={isLastTimeline}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Loading status */}
+        {isWorking && <LoadingStatus activities={activities} />}
+
+        {/* Trailing text — only content that comes after the last timeline card */}
+        {trailingContent && (
+          <div className="prose prose-sm prose-slate max-w-none text-gray-800 mt-1">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
+              {trailingContent}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Fallback: no activities at all, just raw markdown */}
+        {fallbackContent && (
+          <div className="prose prose-sm prose-slate max-w-none text-gray-800">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={md}>
+              {fallbackContent}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Initial loading — no activities yet, no content */}
+        {!activities.length && !message.content && <LoadingAnimation />}
       </div>
     </div>
   );

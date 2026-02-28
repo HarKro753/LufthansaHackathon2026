@@ -154,36 +154,21 @@ export function RouteCard({ route }: { route: TripRoute }) {
         </div>
       </div>
 
-      {/* Footer: links */}
-      {(route.google_maps_url || (route.ticket_links && route.ticket_links.length > 0)) && (
-        <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-between bg-gray-50/50">
-          <div className="flex items-center gap-2 flex-wrap">
-            {route.ticket_links?.map((link, i) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-semibold text-[#FF385C] hover:text-[#cc1c40] transition-colors px-3 py-1.5 rounded-lg border border-[#FFB3C1] hover:bg-[#FFF0F3]"
-              >
-                {link.title}
-              </a>
-            ))}
-          </div>
-          {route.google_maps_url && (
-            <a
-              href={route.google_maps_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-              title="View on Google Maps"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </a>
-          )}
+      {/* Footer: Google Maps link */}
+      {route.google_maps_url && (
+        <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-end bg-gray-50/50">
+          <a
+            href={route.google_maps_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            View on Google Maps
+          </a>
         </div>
       )}
     </div>

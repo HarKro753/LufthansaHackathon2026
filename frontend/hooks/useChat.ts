@@ -110,18 +110,84 @@ export function useChat(options?: UseChatOptions): UseChatReturn {
     initializedRef.current = true;
 
     fetch(`${API_BASE}/api/session/history`, { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : { messages: [] }))
+      .then((res) => (res.ok ? res.json() : { messages: [], trip: null }))
       .then(
         (data: {
-          messages: { role: string; content: string; timestamp: string }[];
+          messages: {
+            role: string;
+            content: string;
+            timestamp: string;
+            timeline_item_ids?: string[];
+          }[];
+          trip?: TripState | null;
         }) => {
           if (data.messages.length > 0) {
-            const restored: ChatMessage[] = data.messages.map((m, i) => ({
-              id: `restored-${i}-${Date.now()}`,
-              role: m.role as "user" | "assistant",
-              content: m.content,
-              timestamp: new Date(m.timestamp),
-            }));
+            const trip = data.trip ?? null;
+
+            const restored: ChatMessage[] = data.messages.map((m, i) => {
+              const base: ChatMessage = {
+                id: `restored-${i}-${Date.now()}`,
+                role: m.role as "user" | "assistant",
+                content: m.content,
+                timestamp: new Date(m.timestamp),
+              };
+
+              // Reconstruct timeline activities from persisted item IDs
+              const itemIds = m.timeline_item_ids ?? [];
+              if (m.role === "assistant" && itemIds.length > 0 && trip) {
+                const idSet = new Set(itemIds);
+                const timelineActivities: ActivityItem[] = [];
+
+                for (const f of trip.flights) {
+                  if (idSet.has(f.id)) {
+                    timelineActivities.push({
+                      type: "timeline",
+                      data: { itemType: "flight", data: f },
+                    });
+                  }
+                }
+                for (const s of trip.stays) {
+                  if (idSet.has(s.id)) {
+                    timelineActivities.push({
+                      type: "timeline",
+                      data: { itemType: "stay", data: s },
+                    });
+                  }
+                }
+                for (const r of trip.routes) {
+                  if (idSet.has(r.id)) {
+                    timelineActivities.push({
+                      type: "timeline",
+                      data: { itemType: "route", data: r },
+                    });
+                  }
+                }
+                for (const a of trip.activities) {
+                  if (idSet.has(a.id)) {
+                    timelineActivities.push({
+                      type: "timeline",
+                      data: { itemType: "activity", data: a },
+                    });
+                  }
+                }
+
+                if (timelineActivities.length > 0) {
+                  // Add content as trailing text after timeline cards
+                  if (m.content.trim()) {
+                    timelineActivities.push({
+                      type: "content",
+                      data: {
+                        id: `restored-content-${i}`,
+                        content: m.content,
+                      },
+                    });
+                  }
+                  base.activities = timelineActivities;
+                }
+              }
+
+              return base;
+            });
             setMessages(restored);
           }
         },

@@ -93,11 +93,17 @@ class StoredFlightResult(BaseModel):
 
 
 class ChatMessageRecord(BaseModel):
-    """A single persisted chat message (user or assistant text only)."""
+    """A single persisted chat message (user or assistant text only).
+
+    For assistant messages, timeline_item_ids tracks which trip items
+    (flights, stays, routes, activities) were added during this response,
+    so the frontend can reconstruct timeline cards on history restore.
+    """
 
     role: Literal["user", "assistant"]
     content: str
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    timeline_item_ids: list[str] = Field(default_factory=list)
 
 
 class SessionData(BaseModel):

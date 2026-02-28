@@ -40,47 +40,49 @@ export function StayCard({ stay }: { stay: TripStay }) {
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-      <div className="flex">
-        {/* Image */}
-        {stay.image_url && (
-          <div className="w-24 h-24 shrink-0">
-            <img
-              src={stay.image_url}
-              alt={stay.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+      {/* Hero image */}
+      {stay.image_url && (
+        <div className="w-full h-36 relative">
+          <img
+            src={stay.image_url}
+            alt={stay.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
 
-        {/* Content */}
-        <div className="flex-1 px-3 py-2.5 min-w-0">
-          <h4 className="text-sm font-semibold text-gray-900 truncate">
-            {stay.name}
-          </h4>
+      {/* Content */}
+      <div className="px-4 py-3">
+        <h4 className="text-sm font-semibold text-gray-900">{stay.name}</h4>
 
-          <div className="flex items-center gap-2 mt-1">
-            {stay.stars && stay.stars > 0 && <StarRating stars={stay.stars} />}
-            {stay.booking_source && (
+        <div className="flex items-center gap-2 mt-1.5">
+          {stay.stars && stay.stars > 0 && <StarRating stars={stay.stars} />}
+          {stay.booking_source && (
+            <span className="text-[11px] text-gray-400">
+              {stay.booking_source}
+            </span>
+          )}
+        </div>
+
+        {/* Rating badge + reviews */}
+        {stay.rating !== null && stay.rating > 0 && (
+          <div className="flex items-center gap-1.5 mt-2">
+            <span className="inline-flex items-center justify-center px-1.5 h-5 rounded bg-[#FF385C] text-[11px] font-bold text-white">
+              {stay.rating.toFixed(1)}
+            </span>
+            {stay.reviews !== null && stay.reviews > 0 && (
               <span className="text-[11px] text-gray-400">
-                {stay.booking_source}
+                {stay.reviews.toLocaleString()} reviews
               </span>
             )}
           </div>
+        )}
 
-          {/* Rating badge */}
-          {stay.rating !== null && stay.rating > 0 && (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <span className="inline-flex items-center justify-center w-7 h-5 rounded bg-[#FF385C] text-[11px] font-bold text-white">
-                {stay.rating.toFixed(1)}
-              </span>
-              {stay.reviews !== null && stay.reviews > 0 && (
-                <span className="text-[11px] text-gray-400">
-                  {stay.reviews.toLocaleString()} reviews
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        {stay.address && (
+          <p className="text-[11px] text-gray-400 mt-1.5 truncate">
+            {stay.address}
+          </p>
+        )}
       </div>
 
       {/* Footer: price + dates + booking */}
@@ -91,22 +93,19 @@ export function StayCard({ stay }: { stay: TripStay }) {
               <span className="text-lg font-bold text-gray-900">
                 {formatPrice(stay.total_price, stay.currency)}
               </span>
-              <span className="text-[11px] text-gray-400">
-                total
-              </span>
+              <span className="text-[11px] text-gray-400">total</span>
             </div>
           ) : stay.price_per_night !== null ? (
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-bold text-gray-900">
                 {formatPrice(stay.price_per_night, stay.currency)}
               </span>
-              <span className="text-[11px] text-gray-400">
-                /night
-              </span>
+              <span className="text-[11px] text-gray-400">/night</span>
             </div>
           ) : null}
           <div className="text-[11px] text-gray-400 mt-0.5">
-            {checkIn} - {checkOut} &middot; {stay.nights} {stay.nights === 1 ? "night" : "nights"}
+            {checkIn} - {checkOut} &middot; {stay.nights}{" "}
+            {stay.nights === 1 ? "night" : "nights"}
           </div>
         </div>
 
@@ -119,9 +118,23 @@ export function StayCard({ stay }: { stay: TripStay }) {
               className="text-gray-400 hover:text-gray-600 transition-colors p-1"
               title="View on Google Maps"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
             </a>
           )}

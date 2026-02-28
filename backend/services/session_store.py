@@ -330,11 +330,21 @@ def append_chat_message(
     session_id: str,
     role: str,
     content: str,
+    timeline_item_ids: list[str] | None = None,
 ) -> None:
-    """Append a user or assistant message to the persisted chat history."""
+    """Append a user or assistant message to the persisted chat history.
+
+    For assistant messages, timeline_item_ids lists the trip item IDs that
+    were added during this response so the frontend can reconstruct timeline
+    cards when restoring history.
+    """
     session = get_or_create_session(session_id)
     session.chat_history.append(
-        ChatMessageRecord(role=role, content=content)  # type: ignore[arg-type]
+        ChatMessageRecord(
+            role=role,  # type: ignore[arg-type]
+            content=content,
+            timeline_item_ids=timeline_item_ids or [],
+        )
     )
     _save_session(session)
 

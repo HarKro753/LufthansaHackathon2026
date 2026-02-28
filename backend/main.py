@@ -116,9 +116,14 @@ async def _stream_agent_response(
     # Persist the user message
     session_store.append_chat_message(cookie_id, "user", user_text)
 
+    # Trip-mutating tools whose results contain an itemId to track
+    TRIP_MUTATING_TOOLS = {"add_to_trip", "update_trip"}
+
     message = Content(parts=[Part(text=user_text)])
-    tool_call_ids: dict[str, str] = {}
+    tool_call_ids: dict[str, str] = {}  # tool_name -> tool_id
+    tool_id_to_name: dict[str, str] = {}  # tool_id -> tool_name
     assistant_text_parts: list[str] = []
+    timeline_item_ids: list[str] = []  # trip item IDs added during this response
 
     try:
         async for event in runner.run_async(
@@ -136,6 +141,7 @@ async def _stream_agent_response(
                     tool_id = call.id or f"{call.name}-{uuid.uuid4().hex[:8]}"
                     if call.name:
                         tool_call_ids[call.name] = tool_id
+                        tool_id_to_name[tool_id] = call.name
                     yield _sse_event(
                         {
                             "type": "tool_call_start",
@@ -158,6 +164,21 @@ async def _stream_agent_response(
                         if isinstance(result_data, (dict, list))
                         else str(result_data)
                     )
+
+                    # Track trip item IDs from mutating tool results
+                    resolved_name = tool_id_to_name.get(tool_id, resp_name)
+                    if resolved_name in TRIP_MUTATING_TOOLS:
+                        try:
+                            parsed = (
+                                result_data
+                                if isinstance(result_data, dict)
+                                else json.loads(result_str)
+                            )
+                            if isinstance(parsed, dict) and parsed.get("itemId"):
+                                timeline_item_ids.append(parsed["itemId"])
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+
                     yield _sse_event(
                         {
                             "type": "tool_call_complete",
@@ -188,10 +209,12 @@ async def _stream_agent_response(
     except Exception as exc:
         yield _sse_event({"type": "error", "error": str(exc)})
 
-    # Persist the full assistant response
+    # Persist the full assistant response with timeline item IDs
     full_text = "".join(assistant_text_parts)
-    if full_text.strip():
-        session_store.append_chat_message(cookie_id, "assistant", full_text)
+    if full_text.strip() or timeline_item_ids:
+        session_store.append_chat_message(
+            cookie_id, "assistant", full_text, timeline_item_ids=timeline_item_ids
+        )
 
     yield _sse_event({"type": "done"})
 
@@ -267,19 +290,31 @@ async def get_session_endpoint(request: Request, response: Response) -> dict:
 
 @app.get("/api/session/history")
 async def get_session_history(request: Request) -> dict:
-    """Return persisted chat history for the current session."""
+    """Return persisted chat history with timeline item IDs and trip state.
+
+    The frontend uses timeline_item_ids to reconstruct timeline cards
+    from the trip state when restoring chat history on page reload.
+    """
     cookie_id = request.cookies.get("lh_session")
     if not cookie_id:
-        return {"messages": []}
+        return {"messages": [], "trip": None}
 
     from services import session_store
 
     records = session_store.get_chat_history(cookie_id)
+    trip = session_store.get_trip(cookie_id)
+
     return {
         "messages": [
-            {"role": r.role, "content": r.content, "timestamp": r.timestamp}
+            {
+                "role": r.role,
+                "content": r.content,
+                "timestamp": r.timestamp,
+                "timeline_item_ids": r.timeline_item_ids,
+            }
             for r in records
-        ]
+        ],
+        "trip": json.loads(trip.model_dump_json()) if trip else None,
     }
 
 
