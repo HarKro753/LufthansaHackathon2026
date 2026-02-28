@@ -794,13 +794,6 @@ export default function Page() {
               </button>
             </div>
           </div>
-
-          <p className="text-center text-[11px] text-gray-400 mt-3">
-            We&apos;d love your feedback.{" "}
-            <a href="#" className="underline text-gray-500 hover:text-gray-700">
-              Click to share your thoughts.
-            </a>
-          </p>
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import {
   APIProvider,
   Map,
   AdvancedMarker,
+  AdvancedMarkerAnchorPoint,
   InfoWindow,
   useAdvancedMarkerRef,
   useMap,
@@ -102,7 +103,6 @@ function MarkerPill({ color, label, price }: MarkerPillProps) {
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         border: "2px solid #ffffff",
         gap: 6,
-        transform: "translate(-50%, -50%)",
       }}
     >
       <span
@@ -151,6 +151,7 @@ function TripMarker({
       <AdvancedMarker
         ref={markerRef}
         position={position}
+        anchorPoint={AdvancedMarkerAnchorPoint.CENTER}
         onClick={() => onMarkerClick(markerId)}
       >
         <MarkerPill color={color} label={label} price={price} />
