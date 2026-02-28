@@ -29,7 +29,6 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Copy necessary files for standalone mode
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
